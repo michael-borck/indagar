@@ -18,6 +18,8 @@ class Source:
     source_type: str = "web"
     sub_question: str | None = None
     confidence: str = "low"
+    published: str = ""
+    authors: str = ""
 
     @property
     def domain(self) -> str:

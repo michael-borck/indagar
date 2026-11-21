@@ -20,6 +20,7 @@ from ..models import (
     utc_now,
 )
 from ..progress import ProgressCallback, emit_progress
+from ..search.academic import build_academic_chain
 from ..search.chain import SearchChain, build_chain, normalize_url
 from ..usage import TrackedLLM, UsageTracker
 from .checkpoint import CheckpointCallback, DeepCheckpoint
@@ -37,6 +38,16 @@ def _ms(started: float) -> int:
 
 def _error_text(exc: Exception) -> str:
     return " ".join(str(exc).split())[:300]
+
+
+def _interleave(primary: list[Source], secondary: list[Source]) -> list[Source]:
+    merged: list[Source] = []
+    for index in range(max(len(primary), len(secondary))):
+        if index < len(primary):
+            merged.append(primary[index])
+        if index < len(secondary):
+            merged.append(secondary[index])
+    return merged
 
 
 def _compose_report(
@@ -189,6 +200,8 @@ async def run_deep_research(
     progress: ProgressCallback | None = None,
     resume: DeepCheckpoint | None = None,
     checkpoint: CheckpointCallback | None = None,
+    academic_chain: SearchChain | None = None,
+    use_academic: bool | None = None,
 ) -> Run:
     """Plan, search, read, extract, gap-check, and synthesize one run."""
     normalized = resume.question if resume is not None else " ".join(question.split())
@@ -196,10 +209,20 @@ async def run_deep_research(
         raise ValueError("question is required")
 
     chain = chain or build_chain(settings)
-    if not chain.providers:
+
+    if use_academic is None:
+        want_academic = resume.academic if resume is not None else settings.academic_enabled
+    else:
+        want_academic = use_academic
+    if academic_chain is None and want_academic:
+        academic_chain = build_academic_chain(settings)
+    if academic_chain is not None and not academic_chain.providers:
+        academic_chain = None
+
+    if not chain.providers and (academic_chain is None or not academic_chain.providers):
         raise RuntimeError(
             "No search provider configured. Set FIRECRAWL_URL, BRAVE_API_KEY, "
-            "SERPER_API_KEY, or SEARXNG_URL."
+            "SERPER_API_KEY, SEARXNG_URL, or enable academic search."
         )
     reader = reader or build_reader(settings)
 
@@ -251,6 +274,7 @@ async def run_deep_research(
             phase=current_phase,
             depth=rounds,
             max_sources=limit,
+            academic=want_academic,
         )
         try:
             checkpoint(state)
@@ -314,21 +338,45 @@ async def run_deep_research(
             f"Searching: {sub_question.question}",
             question=sub_question.question,
         )
-        outcome = await chain.search(
-            sub_question.question,
-            limit=settings.search_limit,
-        )
-        attempts.extend(outcome.attempts)
-        result_word = "result" if len(outcome.sources) == 1 else "results"
+        if academic_chain is not None:
+            web_outcome, academic_outcome = await asyncio.gather(
+                chain.search(
+                    sub_question.question,
+                    limit=settings.search_limit,
+                ),
+                academic_chain.search(
+                    sub_question.question,
+                    limit=settings.search_limit,
+                ),
+            )
+        else:
+            web_outcome = await chain.search(
+                sub_question.question,
+                limit=settings.search_limit,
+            )
+            academic_outcome = None
+
+        attempts.extend(web_outcome.attempts)
+        if academic_outcome is not None:
+            attempts.extend(academic_outcome.attempts)
+        academic_sources = list(academic_outcome.sources) if academic_outcome is not None else []
+        merged = _interleave(academic_sources, list(web_outcome.sources))
+        if academic_outcome is not None:
+            message = f"{len(academic_sources)} academic · {len(web_outcome.sources)} web"
+        else:
+            result_word = "result" if len(web_outcome.sources) == 1 else "results"
+            message = f"{len(web_outcome.sources)} {result_word}"
         emit_progress(
             progress,
             "search_done",
-            f"{len(outcome.sources)} {result_word}",
+            message,
             question=sub_question.question,
-            count=len(outcome.sources),
+            count=len(merged),
+            academic=len(academic_sources),
+            web=len(web_outcome.sources),
         )
         bucket = buckets.setdefault(sub_question.question, [])
-        for source in outcome.sources:
+        for source in merged:
             key = normalize_url(source.url)
             if key in seen:
                 continue

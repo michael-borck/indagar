@@ -3,6 +3,18 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.5.0] - 2026-11-21
+
+### Added
+
+- OpenAlex, Crossref, and arXiv academic search providers, plus optional
+  Semantic Scholar support.
+- `indagar academic` command for direct academic search.
+- Academic results merged with web results in deep research, with
+  `--no-academic` and an API/UI toggle.
+- Publication year and author metadata on sources.
+- Tests for academic providers, academic-only research, and metadata.
+
 ## [0.4.0] - 2026-11-21
 
 ### Added

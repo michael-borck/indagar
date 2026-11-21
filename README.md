@@ -6,10 +6,11 @@ Indagar asks a question, plans sub-questions, searches multiple sources, reads
 what it finds, and produces a cited research report or a source dossier. The name is Spanish for
 *to investigate, inquire, or probe*.
 
-Phase 2 is complete. `research` is retrieval-only by default; adding `--llm`
-turns on LLM planning, source reading, grounded quote extraction, a bounded
-gap check, concurrency, checkpoints, and citation-checked synthesis.
-`indagar serve` opens the local web workspace with resume and DOCX/PDF export.
+Phase 2 is complete, and Phase 3 has started with academic search. `research`
+is retrieval-only by default; adding `--llm` turns on LLM planning, source
+reading, grounded quote extraction, academic and web sources, a bounded gap
+check, concurrency, checkpoints, and citation-checked synthesis. `indagar
+serve` opens the local web workspace with resume and DOCX/PDF export.
 
 ## Install
 
@@ -28,6 +29,7 @@ source .venv/bin/activate
 uv pip install -e '.[dev]'
 
 indagar doctor
+indagar academic "retrieval augmented generation" --limit 5
 indagar search "retrieval augmented generation" --limit 5
 indagar research "Does retrieval augmented generation reduce hallucination?" \
   --max-sources 10
@@ -90,6 +92,20 @@ writer roles. If synthesis uses an unknown citation ID, Indagar rejects it and
 falls back to the grounded evidence table rather than keeping an unverifiable
 claim.
 
+## Academic search
+
+Academic providers are keyless by default:
+
+- OpenAlex
+- Crossref
+- arXiv
+- Semantic Scholar, when `SEMANTIC_SCHOLAR_API_KEY` is set
+
+Deep research queries academic providers alongside web providers and merges
+the results. Use `--no-academic` to skip them. Sources keep their type,
+confidence, publication year, and authors. Set `OPENALEX_MAILTO` for OpenAlex's
+polite pool.
+
 ## Web UI
 
 ```bash
@@ -119,6 +135,10 @@ Copy `.env.example` to `.env` and set the providers you have.
 | `SERPER_API_KEY` | Serper API key |
 | `SEARXNG_URL` | Self-hosted SearXNG base URL |
 | `INDAGAR_SEARCH_ORDER` | Provider order. Default `firecrawl,brave,serper,searxng` |
+| `INDAGAR_ACADEMIC` | Enable academic search. Default `true` |
+| `INDAGAR_ACADEMIC_ORDER` | Academic order. Default `openalex,crossref,arxiv,semantic-scholar` |
+| `OPENALEX_MAILTO` | Optional email for the OpenAlex polite pool |
+| `SEMANTIC_SCHOLAR_API_KEY` | Optional Semantic Scholar key |
 | `ANTHROPIC_API_KEY` | Anthropic key |
 | `ANTHROPIC_BASE_URL` | Anthropic API base. Default `https://api.anthropic.com` |
 | `OPENAI_API_KEY` | OpenAI-compatible key |
@@ -170,11 +190,13 @@ across the planner, reader, and writer roles.
 - [x] Local FastAPI service, job history, live SSE progress, stop, and resume
 - [x] Web report, source inspector, citations, usage, and Markdown/JSON/DOCX/PDF export
 - [x] Source type and confidence labels; bounded concurrent reading
-- [ ] Desktop shell, academic APIs, podcasts/videos
+- [x] Academic APIs: OpenAlex, Crossref, arXiv, and optional Semantic Scholar
+- [x] Academic sources merged into deep research with year and author metadata
+- [ ] Desktop shell, podcasts/videos, provider-native search
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.4.0`, which completes Phase 2. Phase 3 is next: the desktop shell,
-academic APIs, and podcast/video sources.
+PyPI has `0.4.0`; Phase 3 academic search is version `0.5.0` on `main` and is
+next to publish.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 

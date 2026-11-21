@@ -35,6 +35,7 @@ class DeepCheckpoint:
     phase: str = "planned"
     depth: int = 1
     max_sources: int = 12
+    academic: bool = True
     updated_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, object]:
@@ -51,6 +52,7 @@ class DeepCheckpoint:
             "phase": self.phase,
             "depth": self.depth,
             "max_sources": self.max_sources,
+            "academic": self.academic,
             "updated_at": self.updated_at,
         }
 
@@ -91,6 +93,8 @@ class DeepCheckpoint:
                         str(item["sub_question"]) if item.get("sub_question") is not None else None
                     ),
                     confidence=str(item.get("confidence") or "low"),
+                    published=str(item.get("published") or ""),
+                    authors=str(item.get("authors") or ""),
                 )
             )
 

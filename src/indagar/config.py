@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 DEFAULT_SEARCH_ORDER = ("firecrawl", "brave", "serper", "searxng")
+DEFAULT_ACADEMIC_ORDER = ("openalex", "crossref", "arxiv", "semantic-scholar")
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 
@@ -46,6 +47,21 @@ def _env_optional_float(name: str) -> float | None:
         return None
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+def _academic_order() -> tuple[str, ...]:
+    raw = os.getenv("INDAGAR_ACADEMIC_ORDER", "")
+    if not raw.strip():
+        return DEFAULT_ACADEMIC_ORDER
+    names = tuple(part.strip().lower().replace("_", "-") for part in raw.split(",") if part.strip())
+    return names or DEFAULT_ACADEMIC_ORDER
+
+
 def _normalize_llm_provider(raw: str | None) -> str | None:
     value = (raw or "").strip().lower().replace("_", "-")
     if not value:
@@ -71,6 +87,10 @@ class Settings:
     serper_api_key: str | None = None
     searxng_url: str | None = None
     search_order: tuple[str, ...] = DEFAULT_SEARCH_ORDER
+    academic_enabled: bool = True
+    academic_order: tuple[str, ...] = DEFAULT_ACADEMIC_ORDER
+    openalex_mailto: str | None = None
+    semantic_scholar_api_key: str | None = None
     anthropic_api_key: str | None = None
     anthropic_base_url: str = DEFAULT_ANTHROPIC_BASE_URL
     openai_api_key: str | None = None
@@ -109,6 +129,10 @@ class Settings:
             serper_api_key=os.getenv("SERPER_API_KEY", "").strip() or None,
             searxng_url=os.getenv("SEARXNG_URL", "").strip() or None,
             search_order=_search_order(),
+            academic_enabled=_env_bool("INDAGAR_ACADEMIC", True),
+            academic_order=_academic_order(),
+            openalex_mailto=os.getenv("OPENALEX_MAILTO", "").strip() or None,
+            semantic_scholar_api_key=(os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip() or None),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip() or None,
             anthropic_base_url=(
                 os.getenv("ANTHROPIC_BASE_URL", "").strip() or DEFAULT_ANTHROPIC_BASE_URL
@@ -170,6 +194,17 @@ class Settings:
             elif name == "serper" and self.serper_api_key:
                 configured.append(name)
             elif name == "searxng" and self.searxng_url:
+                configured.append(name)
+        return tuple(configured)
+
+    def configured_academic_providers(self) -> tuple[str, ...]:
+        if not self.academic_enabled:
+            return ()
+        configured: list[str] = []
+        for name in self.academic_order:
+            if name in {"openalex", "crossref", "arxiv"}:
+                configured.append(name)
+            elif name == "semantic-scholar" and self.semantic_scholar_api_key:
                 configured.append(name)
         return tuple(configured)
 

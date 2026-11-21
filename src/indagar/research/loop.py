@@ -55,6 +55,10 @@ def render_appendix(
             f"type: {source.source_type}",
             f"confidence: {source.confidence}",
         ]
+        if source.published:
+            meta.append(f"published: {source.published}")
+        if source.authors:
+            meta.append(f"authors: {source.authors}")
         if source.sub_question:
             meta.append(f"sub-question: {source.sub_question}")
         lines.append(f"   {' · '.join(meta)}")

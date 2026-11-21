@@ -111,6 +111,7 @@ def test_index_status_and_static_assets(tmp_path):
     assert "Indagar" in index.text
     assert status.status_code == 200
     assert status.json()["search_providers"] == ["firecrawl"]
+    assert "openalex" in status.json()["academic_providers"]
     assert script.status_code == 200
     assert "EventSource" in script.text
 

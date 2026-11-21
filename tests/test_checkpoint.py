@@ -37,6 +37,8 @@ def _state() -> DeepCheckpoint:
                 source_type="web",
                 sub_question="What is X?",
                 confidence="low",
+                published="2024",
+                authors="Ada Lovelace",
             ),
         ),
         attempts=(SearchAttempt("fake", "ok", 1, 2),),
@@ -66,6 +68,8 @@ def test_checkpoint_round_trip():
     assert restored.question == state.question
     assert restored.plan.planner == "fake"
     assert restored.sources[0].confidence == "low"
+    assert restored.sources[0].published == "2024"
+    assert restored.sources[0].authors == "Ada Lovelace"
     assert restored.citations[0].quote == "A grounded claim."
     assert restored.usage[0].calls == 2
     assert restored.phase == "gaps"

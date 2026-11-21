@@ -36,6 +36,7 @@ class ResearchRequest:
     llm: bool = False
     depth: int | None = None
     max_sources: int | None = None
+    academic: bool | None = None
     resume: DeepCheckpoint | None = None
     checkpoint: CheckpointCallback | None = None
 
@@ -57,6 +58,7 @@ async def default_runner(
             depth=request.depth,
             progress=progress,
             resume=request.resume,
+            use_academic=request.academic,
             checkpoint=request.checkpoint,
         )
     return await run_research(request.question, settings, progress=progress)
@@ -128,6 +130,7 @@ class Job:
             "llm": self.request.llm,
             "depth": self.request.depth,
             "max_sources": self.request.max_sources,
+            "academic": self.request.academic,
             "created_at": self.created_at,
             "finished_at": self.finished_at,
             "run_id": self.run_id,
@@ -166,10 +169,12 @@ class JobManager:
     def _validate(self, request: ResearchRequest) -> None:
         if not request.question.strip():
             raise ValueError("question is required")
-        if not self.settings.configured_search_providers():
+        has_search = bool(self.settings.configured_search_providers())
+        has_academic = bool(self.settings.configured_academic_providers())
+        if not has_search and not (request.llm and has_academic):
             raise RuntimeError(
                 "No search provider configured. Set FIRECRAWL_URL, BRAVE_API_KEY, "
-                "SERPER_API_KEY, or SEARXNG_URL."
+                "SERPER_API_KEY, SEARXNG_URL, or enable academic search."
             )
         if request.llm:
             build_llms(self.settings)
@@ -220,6 +225,7 @@ class JobManager:
                 llm=True,
                 depth=state.depth,
                 max_sources=state.max_sources,
+                academic=state.academic,
                 resume=state,
             )
         )

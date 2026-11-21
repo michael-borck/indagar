@@ -10,6 +10,7 @@ from indagar.models import SearchAttempt, SearchOutcome, Source
 from indagar.research.checkpoint import DeepCheckpoint
 from indagar.research.deep import run_deep_research
 from indagar.research.reader import SourceContent
+from indagar.search.chain import SearchChain
 
 QUOTE = "Photosynthesis converts light energy into chemical energy in chloroplasts."
 CONTENT = (
@@ -36,6 +37,30 @@ class FakeChain:
                 ),
             ),
             attempts=(SearchAttempt("fake", "ok", 1, 1),),
+        )
+
+
+class FakeAcademicChain:
+    providers = [object()]
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def search(self, query: str, limit: int = 8) -> SearchOutcome:
+        self.calls.append(query)
+        return SearchOutcome(
+            sources=(
+                Source(
+                    title=f"Academic source {len(self.calls)}",
+                    url=f"https://doi.org/10.1000/{len(self.calls)}",
+                    provider="openalex",
+                    source_type="academic",
+                    confidence="high",
+                    published="2024",
+                    authors="Ada Lovelace",
+                ),
+            ),
+            attempts=(SearchAttempt("openalex", "ok", 1, 1),),
         )
 
 
@@ -163,7 +188,7 @@ def test_deep_research_produces_citations_and_usage():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=2, max_seconds=60, max_depth=0),
+            Settings(academic_enabled=False, max_sources=2, max_seconds=60, max_depth=0),
             llms=_llms(llm),
             reader=reader,
             chain=chain,
@@ -190,7 +215,7 @@ def test_deep_research_writes_checkpoints_and_resumes():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=2, max_seconds=60, max_depth=0),
+            Settings(academic_enabled=False, max_sources=2, max_seconds=60, max_depth=0),
             llms=_llms(llm),
             reader=FakeReader(),
             chain=FakeChain(),
@@ -210,7 +235,7 @@ def test_deep_research_writes_checkpoints_and_resumes():
     resumed = asyncio.run(
         run_deep_research(
             gathered.question,
-            Settings(max_sources=2, max_seconds=60, max_depth=0),
+            Settings(academic_enabled=False, max_sources=2, max_seconds=60, max_depth=0),
             llms=_llms(ScriptedLLM()),
             reader=resumed_reader,
             chain=resumed_chain,
@@ -225,6 +250,52 @@ def test_deep_research_writes_checkpoints_and_resumes():
     assert "Research report" in resumed.report
 
 
+def test_deep_research_merges_academic_sources():
+    chain = FakeChain()
+    academic = FakeAcademicChain()
+    reader = FakeReader()
+    llm = ScriptedLLM()
+
+    run = asyncio.run(
+        run_deep_research(
+            "What is photosynthesis?",
+            Settings(academic_enabled=False, max_sources=2, max_seconds=60, max_depth=0),
+            llms=_llms(llm),
+            reader=reader,
+            chain=chain,
+            academic_chain=academic,
+        )
+    )
+
+    assert len(academic.calls) == 2
+    assert run.sources
+    assert all(source.source_type == "academic" for source in run.sources)
+    assert all(source.published == "2024" for source in run.sources)
+    assert any(attempt.provider == "openalex" for attempt in run.attempts)
+    assert "Academic source" in run.report
+
+
+def test_deep_research_can_use_academic_only():
+    academic = FakeAcademicChain()
+    reader = FakeReader()
+    llm = ScriptedLLM()
+
+    run = asyncio.run(
+        run_deep_research(
+            "What is photosynthesis?",
+            Settings(max_sources=2, max_seconds=60, max_depth=0),
+            llms=_llms(llm),
+            reader=reader,
+            chain=SearchChain([]),
+            academic_chain=academic,
+        )
+    )
+
+    assert len(run.sources) == 2
+    assert all(source.source_type == "academic" for source in run.sources)
+    assert all(source.published == "2024" for source in run.sources)
+
+
 def test_deep_research_reads_concurrently():
     chain = FakeChain()
     reader = SlowReader()
@@ -233,7 +304,9 @@ def test_deep_research_reads_concurrently():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=2, max_seconds=60, max_depth=0, concurrency=2),
+            Settings(
+                academic_enabled=False, max_sources=2, max_seconds=60, max_depth=0, concurrency=2
+            ),
             llms=_llms(llm),
             reader=reader,
             chain=chain,
@@ -252,7 +325,7 @@ def test_deep_research_runs_one_gap_round():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=6, max_seconds=60, max_depth=1),
+            Settings(academic_enabled=False, max_sources=6, max_seconds=60, max_depth=1),
             llms=_llms(llm),
             reader=reader,
             chain=chain,
@@ -274,7 +347,7 @@ def test_deep_research_falls_back_when_synthesis_is_ungrounded():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=1, max_seconds=60, max_depth=0),
+            Settings(academic_enabled=False, max_sources=1, max_seconds=60, max_depth=0),
             llms=_llms(llm),
             reader=reader,
             chain=chain,
@@ -294,7 +367,7 @@ def test_deep_research_drops_ungrounded_quotes():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=1, max_seconds=60, max_depth=0),
+            Settings(academic_enabled=False, max_sources=1, max_seconds=60, max_depth=0),
             llms=_llms(llm),
             reader=reader,
             chain=chain,
@@ -314,7 +387,7 @@ def test_deep_research_falls_back_to_a_deterministic_plan():
     run = asyncio.run(
         run_deep_research(
             "What is photosynthesis?",
-            Settings(max_sources=1, max_seconds=60, max_depth=0),
+            Settings(academic_enabled=False, max_sources=1, max_seconds=60, max_depth=0),
             llms=_llms(llm),
             reader=reader,
             chain=chain,

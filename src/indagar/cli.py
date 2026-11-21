@@ -18,6 +18,7 @@ from .llm.factory import build_llm, build_llms
 from .research.checkpoint import delete_checkpoint, load_checkpoint, save_checkpoint
 from .research.deep import run_deep_research
 from .research.loop import run_research
+from .search.academic import build_academic_chain
 from .search.chain import build_chain
 from .store import save_run
 
@@ -55,6 +56,8 @@ def doctor() -> None:
     console.print("[bold]Indagar doctor[/bold]")
     console.print(f"Search order: {', '.join(settings.search_order)}")
     console.print(f"Configured search: {', '.join(configured) or 'none'}")
+    academic = settings.configured_academic_providers()
+    console.print(f"Academic search: {', '.join(academic) or 'off'}")
     console.print(f"LLM providers: {', '.join(settings.llm_providers()) or 'none'}")
     selected = settings.selected_llm_provider()
     if selected:
@@ -81,10 +84,11 @@ def doctor() -> None:
         f"min_interval={settings.llm_min_interval}s, "
         f"llm_max_tokens={settings.llm_max_tokens}"
     )
-    if not configured:
+    if not configured and not academic:
         console.print(
-            "[yellow]No search provider configured. Set FIRECRAWL_URL, "
-            "BRAVE_API_KEY, SERPER_API_KEY, or SEARXNG_URL.[/yellow]"
+            "[yellow]No search or academic provider configured. Set FIRECRAWL_URL, "
+            "BRAVE_API_KEY, SERPER_API_KEY, SEARXNG_URL, or enable academic "
+            "search.[/yellow]"
         )
 
 
@@ -194,6 +198,49 @@ def serve(
     uvicorn.run(create_app(), host=host, port=port)
 
 
+@app.command("academic")
+def academic_search(
+    query: str = typer.Argument(..., help="Academic search query"),
+    limit: int = typer.Option(8, "--limit", "-n", min=1, max=20),
+) -> None:
+    """Search OpenAlex, Crossref, arXiv, and Semantic Scholar."""
+    settings = _settings_or_exit()
+    chain = build_academic_chain(settings)
+    if not chain.providers:
+        console.print("[red]Academic search is disabled or unconfigured.[/red]")
+        raise typer.Exit(1)
+
+    try:
+        outcome = asyncio.run(chain.search(query, limit=limit))
+    except Exception as exc:  # noqa: BLE001 - CLI boundary
+        console.print(f"[red]Academic search failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    table = Table(title=f"Academic search: {query}", show_lines=False)
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Title", overflow="fold")
+    table.add_column("Year", style="cyan")
+    table.add_column("Authors", overflow="fold")
+    table.add_column("Provider", style="green")
+    for index, source in enumerate(outcome.sources, start=1):
+        table.add_row(
+            str(index),
+            source.title,
+            source.published or "—",
+            source.authors or "—",
+            source.provider,
+        )
+    console.print(table)
+    for attempt in outcome.attempts:
+        detail = f" — {attempt.error}" if attempt.error else ""
+        console.print(
+            f"[dim]{attempt.provider}: {attempt.status} "
+            f"({attempt.count}, {attempt.latency_ms}ms){detail}[/dim]"
+        )
+    if not outcome.sources:
+        console.print("[yellow]No academic results.[/yellow]")
+
+
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Search query"),
@@ -251,6 +298,11 @@ def research(
         "--resume",
         help="Resume a checkpointed run id",
     ),
+    no_academic: bool = typer.Option(
+        False,
+        "--no-academic",
+        help="Skip OpenAlex, Crossref, arXiv, and Semantic Scholar",
+    ),
     max_sources: int = typer.Option(0, "--max-sources", min=0, help="0 uses INDAGAR_MAX_SOURCES"),
     out: Path | None = typer.Option(None, "--out", "-o", help="Markdown output path"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the estimate and exit"),
@@ -298,6 +350,7 @@ def research(
                     depth=depth,
                     resume=state,
                     checkpoint=lambda saved: save_checkpoint(runs_dir, saved),
+                    use_academic=False if no_academic else None,
                 )
             )
         else:

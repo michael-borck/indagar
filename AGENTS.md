@@ -10,6 +10,7 @@ ruff check .
 ruff format --check .
 pytest -q
 indagar doctor
+indagar academic "photosynthesis" --limit 5
 indagar llm "Say hello" --role writer
 indagar research "What is X?" --llm --depth 0 --max-sources 3
 indagar estimate "What is X?" --max-sources 3 --depth 0
@@ -29,7 +30,8 @@ node --check src/indagar/web/static/app.js
 - Every citation needs a source and a non-empty quote. Extraction must verify
   that the quote actually appears in the source text; drop it otherwise.
 - Source type and confidence labels are URL heuristics, not verification.
-  Never describe a web or media source as peer-reviewed.
+  Never describe a web or media source as peer-reviewed. Academic search
+  results are academic sources, not a systematic review.
 - Checkpoints contain sources, quotes, and usage only; never API keys or raw
   prompts. Resume must preserve citation deduplication.
 - Synthesis may cite only ledger IDs. Unknown IDs are a hard error and trigger

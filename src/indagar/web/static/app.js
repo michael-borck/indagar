@@ -83,9 +83,20 @@ function renderStatus(status) {
     chip.textContent = `${search.length} search · ${status.llm_provider}`;
   }
 
+  if (!status.academic_enabled) {
+    $("use-academic").checked = false;
+  }
+
   const config = $("config");
   config.innerHTML = "";
   config.append(configRow("Search", badges(search, search.length > 0)));
+  const academic = status.academic_providers || [];
+  config.append(
+    configRow(
+      "Academic",
+      academic.length ? badges(academic, true) : '<span class="badge">off</span>',
+    ),
+  );
 
   if (status.llm_provider) {
     const models = Object.entries(status.llm_models || {})
@@ -307,6 +318,7 @@ async function startResearch() {
   const body = {
     question,
     llm: $("use-llm").checked,
+    academic: $("use-academic").checked,
     depth: Number($("depth").value),
     max_sources: Number($("max-sources").value),
   };
@@ -516,6 +528,12 @@ function selectSource(index) {
     )} · ${escapeHtml(source.source_type || "web")} · ${escapeHtml(
       source.confidence || "low",
     )} confidence</p>` +
+    (source.published
+      ? `<p><strong>Published:</strong> ${escapeHtml(source.published)}</p>`
+      : "") +
+    (source.authors
+      ? `<p><strong>Authors:</strong> ${escapeHtml(source.authors)}</p>`
+      : "") +
     `<p><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">Open source</a></p>` +
     (source.sub_question
       ? `<p><strong>Sub-question:</strong> ${escapeHtml(source.sub_question)}</p>`
