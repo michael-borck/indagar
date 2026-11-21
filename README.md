@@ -247,8 +247,9 @@ across the planner, reader, and writer roles.
 - [ ] Bundled/signed desktop installers
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.6.1`, which completes Phase 3. Bundled/signed desktop installers
-remain future work.
+PyPI has `0.6.2`. Desktop installers bundle `uv` and the Indagar wheel, create
+their own Python environment on first run, and update the engine when the app
+updates. macOS auto-update still requires a signed build.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
