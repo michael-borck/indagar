@@ -1,6 +1,6 @@
 [project]
 name = "indagar"
-version = "0.6.1"
+version = "0.6.2"
 description = "Deep research from the command line: plan, search, read, and synthesize with citations."
 readme = "README.md"
 requires-python = ">=3.11"

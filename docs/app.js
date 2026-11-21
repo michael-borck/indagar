@@ -4,19 +4,19 @@ const RELEASE_BASE = `https://github.com/${REPO}/releases/latest/download/`;
 const downloads = {
   mac: {
     label: "macOS",
-    note: "Universal · macOS 11+ · right-click Open if Gatekeeper blocks",
+    note: "Universal · macOS 11+ · includes engine · right-click Open if Gatekeeper blocks",
     file: "Indagar-mac-universal.dmg",
     pattern: /mac.*\.dmg$/i,
   },
   win: {
     label: "Windows",
-    note: "64-bit installer · Windows 10+",
+    note: "64-bit installer · Windows 10+ · includes engine",
     file: "Indagar-win-x64-setup.exe",
     pattern: /win.*setup\.exe$/i,
   },
   linux: {
     label: "Linux",
-    note: "x64 AppImage · most desktop distributions",
+    note: "x64 AppImage · most desktop distributions · includes engine",
     file: "Indagar-linux-x64.AppImage",
     pattern: /linux.*\.AppImage$/i,
   },

@@ -2,41 +2,46 @@
 
 An Electron shell around the local Indagar FastAPI server.
 
-## Run
+## Run (development)
 
 ```bash
-pip install 'indagar[web,media]'
-cd desktop
 npm install
-npm start
+INDAGAR_BIN="$(which indagar)" npm start
 ```
 
-The shell finds a free local port, starts `indagar serve`, waits for
-`/api/health`, then opens the web UI in a native window. Closing the window
-stops the server.
+For development, `INDAGAR_BIN` uses an existing Indagar command. Without it,
+the app looks for the bundled sidecar and creates an app-local Python
+environment.
 
-If `indagar` is not on `PATH`, point the shell at it:
+## Bundled engine
 
-```bash
-INDAGAR_BIN=/path/to/venv/bin/indagar npm start
-```
+Release builds ship:
 
-The server binds `127.0.0.1` and has no authentication. Do not expose it to an
-untrusted network.
+- `uv` binaries for the platform/arch under `sidecar/uv/`
+- the `indagar` wheel under `sidecar/wheel/`
+- `scripts/afterPack.js`, which copies the sidecar into the packaged app after
+  the universal merge
+
+On first launch, `uv` installs Python 3.12 into the app data directory, creates
+a venv, and installs the bundled wheel with `web` and `media` extras. The
+engine version marker makes the app reinstall the engine after a desktop
+update. First-time setup needs an internet connection.
 
 ## Packaging
 
 ```bash
+python scripts/bundle_uv.py
+python -m build --wheel --outdir sidecar/wheel ..
 npm run dist
 ```
 
 `electron-builder.yml` builds a universal macOS DMG/ZIP, a Windows NSIS
 installer, and a Linux AppImage. The GitHub `Desktop release` workflow runs on
-`v*` tags, publishes the assets, and uploads `latest*.yml` for auto-update.
+`v*` tags, builds the wheel, bundles `uv`, publishes the assets, and uploads
+`latest*.yml` for auto-update.
 
 Packaged builds check GitHub releases every six hours. macOS auto-update
 requires a signed build; add `APPLE_CERTIFICATE` and
 `APPLE_CERTIFICATE_PASSWORD` repository secrets and the release workflow signs
 the app. Windows and Linux update unsigned builds but still show OS security
-warnings. The app is still a shell around the installed `indagar` command, not a
-bundled Python distribution.
+warnings.

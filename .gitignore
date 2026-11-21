@@ -19,3 +19,8 @@ desktop/dist/
 
 !desktop/build/
 !desktop/build/**
+
+desktop/sidecar/uv/*
+!desktop/sidecar/uv/.gitkeep
+desktop/sidecar/wheel/*
+!desktop/sidecar/wheel/.gitkeep

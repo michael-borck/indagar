@@ -27,3 +27,5 @@ jobs:
           node --check src/indagar/web/static/app.js
           node --check desktop/main.js
           node --check desktop/preload.js
+          node --check desktop/setup-preload.js
+          node --check desktop/scripts/afterPack.js

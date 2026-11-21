@@ -255,10 +255,12 @@ indagar serve --host 127.0.0.1 --port 8765
 
 ### Desktop (Phase 3, source shell)
 
-Electron shell under `desktop/`: finds a free port, starts `indagar serve`,
+Electron shell under `desktop/`: bundles `uv` and the Indagar wheel, creates
+an app-local Python 3.12 environment on first run, starts `indagar serve`,
 waits for `/api/health`, opens the web UI in a native window, routes external
-links to the system browser, and stops the server on exit. Packaging and
-signing are separate.
+links to the system browser, and stops the server on exit. The engine is
+reinstalled when the desktop version changes. Packaging and signing are
+separate; mac auto-update needs a signed build.
 
 ## 10. Reuse
 

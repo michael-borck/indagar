@@ -1,6 +1,6 @@
 {
   "name": "indagar-desktop",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "Desktop shell for Indagar",
   "main": "main.js",

@@ -3,6 +3,18 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.6.2] - 2026-11-21
+
+### Desktop
+
+- Bundle `uv` and the Indagar wheel in the desktop app.
+- Create an app-local Python environment on first run and reinstall when the
+  app version changes.
+- Add a setup window with installation progress.
+- Keep automatic engine upgrades in step with desktop auto-updates.
+- No system Python or separate Indagar install is required for the packaged
+  app. First-time setup needs network access for Python and dependencies.
+
 ## [0.6.1] - 2026-11-21
 
 ### Fixed

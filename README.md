@@ -129,19 +129,27 @@ Tavily and Exa are optional provider-native search adapters. Set
 `TAVILY_API_KEY` or `EXA_API_KEY`, then put them in `INDAGAR_SEARCH_ORDER`.
 They join the existing ordered fallback chain.
 
-## Desktop shell
+## Desktop app
+
+Download the installer from the [landing page](https://michael-borck.github.io/indagar/).
+
+The app includes its own Python engine. On first launch it uses bundled `uv` to
+download Python 3.12 into the app data folder, installs the bundled Indagar
+wheel with the web and media extras, and starts the local server. No system
+Python and no separate `pip install indagar` are required. The engine is
+reinstalled when the desktop app version changes. First-time setup needs an
+internet connection for Python and dependencies.
+
+For development:
 
 ```bash
-uv pip install 'indagar[web,media]'
 cd desktop
 npm install
-npm start
+INDAGAR_BIN="$(which indagar)" npm start
 ```
 
-The Electron shell starts `indagar serve`, waits for health, and opens the UI
-in a native window. Set `INDAGAR_BIN=/path/to/indagar` if it is not on `PATH`.
 Packaged builds check GitHub for updates; macOS auto-update needs a signed
-build. Release installers are linked from the [landing page](https://michael-borck.github.io/indagar/).
+build.
 
 ## Web UI
 
