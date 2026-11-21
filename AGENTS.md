@@ -14,6 +14,7 @@ indagar llm "Say hello" --role writer
 indagar research "What is X?" --llm --depth 0 --max-sources 3
 indagar estimate "What is X?" --max-sources 3 --depth 0
 indagar research "What is X?" --llm --dry-run
+indagar serve --host 127.0.0.1 --port 8765
 ```
 
 ## Invariants
@@ -33,3 +34,5 @@ indagar research "What is X?" --llm --dry-run
 - Web and media sources are not peer-reviewed and must not be labelled as such.
 - Keep the CLI flow: `doctor` is offline, `search` is retrieval-only, `research`
   writes a run record and a report or dossier.
+- The web server binds `127.0.0.1` by default and has no auth. Do not expose it
+  to untrusted networks without warning the user.

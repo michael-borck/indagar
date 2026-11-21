@@ -1,6 +1,6 @@
 # Indagar — design specification
 
-**Status:** Phase 1 core loop and polish implemented
+**Status:** Phase 2 in progress: local web UI
 **Name:** Indagar (Spanish: to investigate, inquire, probe)
 **Licence:** MIT
 
@@ -150,7 +150,7 @@ call as budgeted.
 
 ```
 src/indagar/
-  cli.py            Typer commands: doctor, llm, search, research
+  cli.py            Typer commands: doctor, llm, estimate, search, research, serve
   config.py         Environment settings and provider status
   models.py         Source, Citation, SubQuestion, ResearchPlan, ReadAttempt,
                     ModelUsage, SearchOutcome, Run
@@ -168,6 +168,10 @@ src/indagar/
     base.py         SearchProvider protocol and SearchError
     providers.py    Firecrawl, Brave, Serper, SearXNG
     chain.py        Ordered fallback, dedupe, cache
+  web/
+    app.py          FastAPI routes, SSE, static UI
+    jobs.py         Background jobs, events, history, cancel
+    static/         index.html, app.js, styles.css
   research/
     planner.py      Deterministic and LLM planners
     reader.py       Firecrawl, simple HTTP, and fallback readers
@@ -179,8 +183,8 @@ src/indagar/
     json_utils.py   Tolerant JSON object parsing
 ```
 
-The Phase 1 core loop is implemented. Pre-run cost estimates, provider rate
-limiting, resume, and the web UI remain.
+Phase 1 is implemented. Phase 2 ships the local FastAPI service and web UI;
+resume, DOCX/PDF export, and source confidence labels remain.
 
 ## 9. Interfaces
 
@@ -194,16 +198,25 @@ indagar search "question" --limit 8
 indagar research "question" --max-sources 12 --out report.md
 indagar research "question" --llm --depth 1 --max-sources 12
 indagar research "question" --llm --dry-run
+indagar serve --host 127.0.0.1 --port 8765
 ```
 
-### Web UI (Phase 2)
+### Web UI (Phase 2, in progress)
+
+Implemented:
 
 - Question, budget, provider status.
-- Live progress: plan, searches, sources read, gaps, synthesis.
-- Source inspector with snippet, type, confidence, and citation.
-- Report view and Markdown/DOCX/PDF export.
-- Pause, resume, stop.
-- Cost and rate-limit panel.
+- Live progress over SSE: plan, searches, reads, gaps, synthesis.
+- Report view, source inspector, citations, run details, and usage.
+- Markdown and JSON export.
+- Job history and stop.
+
+Remaining:
+
+- Resume interrupted runs.
+- DOCX and PDF export.
+- Source type and confidence labels.
+- Concurrency controls.
 
 ### Desktop (Phase 3)
 
@@ -229,7 +242,7 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 |---|---|
 | 0 | Skeleton: CLI, search chain, deterministic plan, source dossier, tests, CI |
 | 1 | LLM planner, reader/extractor, gap loop, synthesis, citation ledger, usage panel |
-| 2 | Web UI, resume, source inspector, exports |
+| 2 | Web UI, job history, live progress, source inspector, Markdown/JSON exports, resume, DOCX/PDF |
 | 3 | Desktop shell, academic APIs, podcasts/videos, provider-native search as an option |
 
 ## 12. Phase 0 acceptance
@@ -257,3 +270,15 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
   estimates, readers, extraction, gaps, synthesis, citation validation, and the
   full loop with fakes.
 - `ruff check`, `ruff format --check`, and `pytest` pass.
+
+## 14. Phase 2 acceptance (initial)
+
+- `indagar serve` starts the local FastAPI service and static UI.
+- The UI starts Phase 0 or `--llm` runs and shows provider status.
+- Progress streams over SSE; a running job can be stopped.
+- Completed runs are saved, listed in history, and reloadable.
+- The UI renders the report, sources, citations, run details, and usage.
+- Markdown and JSON exports download from the run.
+- API tests cover status, estimates, job lifecycle, SSE, cancellation, exports,
+  and missing runs.
+- `ruff check`, `ruff format --check`, `pytest`, and `node --check` pass.

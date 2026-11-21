@@ -3,6 +3,17 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.3.0] - 2026-11-21
+
+### Added
+
+- Local FastAPI service with background research jobs and SSE progress.
+- Web UI for question/budget input, provider status, live timeline, history,
+  stop, report, source inspector, citations, run details, and usage.
+- Markdown and JSON downloads from the web UI.
+- `indagar serve` command and optional `web` extra.
+- API and job-manager tests with fake runners and a TestClient.
+
 ## [0.2.1] - 2026-11-21
 
 ### Added

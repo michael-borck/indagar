@@ -14,7 +14,7 @@ extraction, a bounded gap check, and citation-checked synthesis.
 
 ```bash
 uv pip install indagar
-# or: pip install indagar
+# or: pip install 'indagar[web]' to include the local web UI
 ```
 
 ## Quick start
@@ -87,6 +87,22 @@ writer roles. If synthesis uses an unknown citation ID, Indagar rejects it and
 falls back to the grounded evidence table rather than keeping an unverifiable
 claim.
 
+## Web UI
+
+```bash
+uv pip install 'indagar[web]'
+indagar serve
+# open http://127.0.0.1:8765
+```
+
+The local UI starts Phase 0 or `--llm` runs, streams progress over SSE, shows
+sources and citations, and exports Markdown or JSON. A run can be stopped from
+the page. History and the source inspector are included.
+
+The server binds `127.0.0.1` by default and has no authentication. Use
+`--host`/`--port` to change the bind address; do not expose it to an untrusted
+network.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and set the providers you have.
@@ -146,11 +162,14 @@ across the planner, reader, and writer roles.
 - [x] Citation ledger with dedupe, source grouping, and Markdown rendering
 - [x] Per-run source-read and model-usage tables
 - [x] Pre-run token/cost estimate, LLM retry/backoff, and request spacing
-- [ ] Resume, concurrency, and web UI
+- [x] Local FastAPI service, job history, live SSE progress, and stop
+- [x] Web report, source inspector, citations, usage, and Markdown/JSON export
+- [ ] Resume, DOCX/PDF, source confidence labels, and concurrency
 - [ ] Desktop shell
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.2.1`, which includes the Phase 1 core loop and polish. Phase 2 is next.
+PyPI has `0.2.1`; the Phase 2 web UI is version `0.3.0` on `main` and is next
+to publish.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 

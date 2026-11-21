@@ -176,6 +176,23 @@ def estimate(
 
 
 @app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind address"),
+    port: int = typer.Option(8765, "--port", min=1, max=65535),
+) -> None:
+    """Serve the local web UI and API."""
+    try:
+        import uvicorn
+    except ImportError as exc:
+        console.print("[red]Install the web extra: pip install 'indagar[web]'[/red]")
+        raise typer.Exit(1) from exc
+    from .web.app import create_app
+
+    console.print(f"Indagar web UI: http://{host}:{port}")
+    uvicorn.run(create_app(), host=host, port=port)
+
+
+@app.command()
 def search(
     query: str = typer.Argument(..., help="Search query"),
     limit: int = typer.Option(8, "--limit", "-n", min=1, max=20),

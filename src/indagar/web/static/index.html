@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Indagar</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark">I</span>
+      <div>
+        <h1>Indagar</h1>
+        <p>Deep research, with the trail left visible.</p>
+      </div>
+    </div>
+    <div id="status-chip" class="chip">Connecting…</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel controls">
+      <section>
+        <h2>New run</h2>
+        <label for="question">Question</label>
+        <textarea id="question" rows="5" placeholder="What does the evidence say about…"></textarea>
+
+        <div class="row">
+          <div class="field">
+            <label for="max-sources">Max sources</label>
+            <input id="max-sources" type="number" min="1" max="50" value="8">
+          </div>
+          <div class="field">
+            <label for="depth">Follow-up rounds</label>
+            <select id="depth">
+              <option value="0">0</option>
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="toggle">
+          <input id="use-llm" type="checkbox" checked>
+          Use LLM planner, reader, and writer
+        </label>
+
+        <div class="actions">
+          <button id="estimate-button" class="secondary" type="button">Estimate</button>
+          <button id="start-button" class="primary" type="button">Start research</button>
+          <button id="cancel-button" class="danger" type="button" hidden>Stop</button>
+        </div>
+        <p id="estimate-output" class="note"></p>
+        <p id="error-output" class="error" hidden></p>
+      </section>
+
+      <section>
+        <h2>Configured</h2>
+        <div id="config" class="config"></div>
+      </section>
+
+      <section>
+        <h2>History</h2>
+        <div id="history" class="history"></div>
+      </section>
+    </aside>
+
+    <section class="panel workspace">
+      <div class="workspace-head">
+        <div>
+          <h2 id="workspace-title">Ready</h2>
+          <p id="workspace-subtitle" class="note">
+            Start a run to see the plan, sources, citations, and report.
+          </p>
+        </div>
+        <div id="exports" class="exports" hidden>
+          <a id="export-md" class="button secondary" href="#" download>Markdown</a>
+          <a id="export-json" class="button secondary" href="#" download>JSON</a>
+        </div>
+      </div>
+
+      <div id="progress" class="progress"></div>
+
+      <div id="result" class="result" hidden>
+        <div id="result-summary" class="result-summary"></div>
+        <article id="report" class="report"></article>
+
+        <section class="detail-section">
+          <h3>Sources</h3>
+          <div id="sources" class="sources"></div>
+        </section>
+
+        <section class="detail-section">
+          <h3>Source inspector</h3>
+          <div id="source-detail" class="source-detail">
+            Select a source to inspect it.
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <h3>Citations</h3>
+          <div id="citations"></div>
+        </section>
+
+        <section class="detail-section">
+          <h3>Run details</h3>
+          <div id="run-details"></div>
+        </section>
+
+        <section class="detail-section">
+          <h3>Usage</h3>
+          <div id="usage"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

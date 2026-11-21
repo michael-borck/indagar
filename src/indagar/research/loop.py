@@ -17,6 +17,7 @@ from ..models import (
     Source,
     utc_now,
 )
+from ..progress import ProgressCallback, emit_progress
 from ..search.chain import SearchChain, build_chain, normalize_url
 from .planner import plan_question
 
@@ -146,8 +147,16 @@ async def run_research(
     chain: SearchChain | None = None,
     plan: ResearchPlan | None = None,
     max_sources: int | None = None,
+    progress: ProgressCallback | None = None,
 ) -> Run:
     plan = plan or plan_question(question, max_sub_questions=4)
+    emit_progress(
+        progress,
+        "plan",
+        f"Planned {len(plan.sub_questions)} sub-questions",
+        planner=plan.planner,
+        sub_questions=[item.question for item in plan.sub_questions],
+    )
     chain = chain or build_chain(settings)
     if not chain.providers:
         raise RuntimeError(
@@ -163,8 +172,22 @@ async def run_research(
     attempts: list[SearchAttempt] = []
 
     for sub_question in plan.sub_questions:
+        emit_progress(
+            progress,
+            "search",
+            f"Searching: {sub_question.question}",
+            question=sub_question.question,
+        )
         outcome: SearchOutcome = await chain.search(
             sub_question.question, limit=settings.search_limit
+        )
+        result_word = "result" if len(outcome.sources) == 1 else "results"
+        emit_progress(
+            progress,
+            "search_done",
+            f"{len(outcome.sources)} {result_word}",
+            question=sub_question.question,
+            count=len(outcome.sources),
         )
         attempts.extend(outcome.attempts)
         for source in outcome.sources:
@@ -191,6 +214,12 @@ async def run_research(
             break
 
     selected = tuple(selected)
+    emit_progress(
+        progress,
+        "done",
+        f"Collected {len(selected)} sources",
+        sources=len(selected),
+    )
     report = render_dossier(plan, selected, tuple(attempts))
     return Run(
         id=run_id(plan.question),
