@@ -3,12 +3,12 @@
 **Deep research from the command line.**
 
 Indagar asks a question, plans sub-questions, searches multiple sources, reads
-what it finds, and produces a cited research dossier. The name is Spanish for
+what it finds, and produces a cited research report or a source dossier. The name is Spanish for
 *to investigate, inquire, or probe*.
 
-Phase 1 is in progress. The CLI, multi-provider search chain, LLM provider
-adapters, and citation ledger are working. The research loop still runs in
-Phase 0 mode until LLM planning, extraction, and synthesis are wired in.
+Phase 1 core loop is implemented. `research` is retrieval-only by default;
+adding `--llm` turns on LLM planning, source reading, grounded quote
+extraction, a bounded gap check, and citation-checked synthesis.
 
 ## Quick start
 
@@ -23,13 +23,20 @@ indagar doctor
 indagar search "retrieval augmented generation" --limit 5
 indagar research "Does retrieval augmented generation reduce hallucination?" \
   --max-sources 10
+
+# Full Phase 1 loop; requires an LLM provider and model.
+indagar research "Does retrieval augmented generation reduce hallucination?" \
+  --llm --max-sources 10 --depth 1
 ```
 
 If the checkout is on an exFAT drive, create the virtual environment on a
 local disk instead: `uv venv ~/.venvs/indagar`.
 
-The `research` command writes a Markdown dossier and a JSON run record under
-`runs/`. Every source keeps its URL, provider, and sub-question.
+The `research` command writes a Markdown report and a JSON run record under
+`runs/`. Every source keeps its URL, provider, and sub-question. With `--llm`,
+quotes are checked against the source text, citations are validated before the
+report is accepted, and per-model token usage is recorded. `--depth 0` disables
+follow-up rounds; the default is one.
 
 ## LLM smoke test
 
@@ -54,7 +61,18 @@ indagar llm "In one sentence, what makes a source trustworthy?"
 ```
 
 Use `--role planner|reader|writer` to exercise a role-specific model, and
-`--json` to request JSON output. `research` does not call an LLM yet.
+`--json` to request JSON output.
+
+The same provider powers the full research loop:
+
+```bash
+indagar research "What limits photosynthesis in C4 plants?" --llm --depth 1
+```
+
+Planning, extraction, gap checks, and synthesis use the planner, reader, and
+writer roles. If synthesis uses an unknown citation ID, Indagar rejects it and
+falls back to the grounded evidence table rather than keeping an unverifiable
+claim.
 
 ## Configuration
 
@@ -83,6 +101,12 @@ Copy `.env.example` to `.env` and set the providers you have.
 | `INDAGAR_MAX_SOURCES` | Sources per run. Default `12` |
 | `INDAGAR_MAX_SECONDS` | Wall-clock budget. Default `300` |
 | `INDAGAR_SEARCH_LIMIT` | Results requested per sub-question. Default `8` |
+| `INDAGAR_MAX_DEPTH` | Follow-up rounds for `--llm`. Default `1`, max `2` |
+| `INDAGAR_MAX_FOLLOW_UPS` | Follow-up questions per gap check. Default `3` |
+| `INDAGAR_MAX_CONTENT_CHARS` | Source text sent to the reader model. Default `12000` |
+| `INDAGAR_MAX_CLAIMS` | Claims extracted per source. Default `5` |
+| `INDAGAR_SYNTHESIS_MAX_TOKENS` | Synthesis output cap. Default `2048` |
+| `INDAGAR_READER_TIMEOUT` | Page read timeout in seconds. Default `45` |
 
 `indagar doctor` shows what is configured.
 
@@ -93,8 +117,10 @@ Copy `.env.example` to `.env` and set the providers you have.
 - [x] Ordered fallback, over-fetch, URL dedupe, and a 10-minute cache
 - [x] Deterministic research plan and cited source dossier
 - [x] Anthropic and OpenAI-compatible LLM adapters with role-based models
+- [x] LLM planner, source reader, verbatim quote extraction, gap loop, and synthesis
 - [x] Citation ledger with dedupe, source grouping, and Markdown rendering
-- [ ] LLM planner, claim extraction, gap loop, and synthesis
+- [x] Per-run source-read and model-usage tables
+- [ ] Cost estimate before a run and provider rate limiting
 - [ ] Web UI and desktop shell
 - [ ] Academic, podcast, and video sources
 

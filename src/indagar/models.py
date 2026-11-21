@@ -67,10 +67,12 @@ class SubQuestion:
 class ResearchPlan:
     question: str
     sub_questions: tuple[SubQuestion, ...]
+    planner: str = "deterministic"
 
     def to_dict(self) -> dict[str, object]:
         return {
             "question": self.question,
+            "planner": self.planner,
             "sub_questions": [item.to_dict() for item in self.sub_questions],
         }
 
@@ -93,6 +95,31 @@ class SearchOutcome:
     attempts: tuple[SearchAttempt, ...]
 
 
+@dataclass(frozen=True)
+class ReadAttempt:
+    url: str
+    status: str
+    chars: int
+    claims: int
+    latency_ms: int
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class ModelUsage:
+    provider: str
+    model: str
+    calls: int
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
 @dataclass
 class Run:
     id: str
@@ -102,6 +129,8 @@ class Run:
     attempts: tuple[SearchAttempt, ...]
     report: str
     citations: tuple[Citation, ...] = ()
+    reads: tuple[ReadAttempt, ...] = ()
+    usage: tuple[ModelUsage, ...] = ()
     created_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, object]:
@@ -113,5 +142,7 @@ class Run:
             "sources": [source.to_dict() for source in self.sources],
             "attempts": [attempt.to_dict() for attempt in self.attempts],
             "citations": [citation.to_dict() for citation in self.citations],
+            "reads": [read.to_dict() for read in self.reads],
+            "usage": [usage.to_dict() for usage in self.usage],
             "report": self.report,
         }

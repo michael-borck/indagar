@@ -10,12 +10,12 @@ DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 
 
-def _env_int(name: str, default: int) -> int:
+def _env_int(name: str, default: int, *, minimum: int = 1) -> int:
     raw = os.getenv(name)
     if raw is None:
         return default
     try:
-        return max(1, int(raw))
+        return max(minimum, int(raw))
     except ValueError:
         return default
 
@@ -76,6 +76,12 @@ class Settings:
     max_sources: int = 12
     max_seconds: int = 300
     search_limit: int = 8
+    max_depth: int = 1
+    max_follow_ups: int = 3
+    max_content_chars: int = 12000
+    max_claims: int = 5
+    synthesis_max_tokens: int = 2048
+    reader_timeout: float = 45.0
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -109,6 +115,17 @@ class Settings:
             max_sources=_env_int("INDAGAR_MAX_SOURCES", 12),
             max_seconds=_env_int("INDAGAR_MAX_SECONDS", 300),
             search_limit=_env_int("INDAGAR_SEARCH_LIMIT", 8),
+            max_depth=_env_int("INDAGAR_MAX_DEPTH", 1, minimum=0),
+            max_follow_ups=_env_int("INDAGAR_MAX_FOLLOW_UPS", 3),
+            max_content_chars=_env_int("INDAGAR_MAX_CONTENT_CHARS", 12000, minimum=1000),
+            max_claims=_env_int("INDAGAR_MAX_CLAIMS", 5),
+            synthesis_max_tokens=_env_int("INDAGAR_SYNTHESIS_MAX_TOKENS", 2048, minimum=256),
+            reader_timeout=_env_float(
+                "INDAGAR_READER_TIMEOUT",
+                45.0,
+                minimum=1.0,
+                maximum=300.0,
+            ),
         )
 
     def configured_search_providers(self) -> tuple[str, ...]:

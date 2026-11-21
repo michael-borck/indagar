@@ -6,12 +6,22 @@ from datetime import UTC, datetime
 
 from ..citations import render_citations
 from ..config import Settings
-from ..models import Citation, ResearchPlan, Run, SearchAttempt, SearchOutcome, Source, utc_now
+from ..models import (
+    Citation,
+    ModelUsage,
+    ReadAttempt,
+    ResearchPlan,
+    Run,
+    SearchAttempt,
+    SearchOutcome,
+    Source,
+    utc_now,
+)
 from ..search.chain import SearchChain, build_chain, normalize_url
 from .planner import plan_question
 
 
-def _run_id(question: str) -> str:
+def run_id(question: str) -> str:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     slug = re.sub(r"[^a-z0-9]+", "-", question.lower()).strip("-")[:48]
     return f"{stamp}-{slug or 'research'}"
@@ -21,30 +31,15 @@ def _escape(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render_dossier(
+def render_appendix(
     plan: ResearchPlan,
     sources: tuple[Source, ...],
     attempts: tuple[SearchAttempt, ...],
     citations: tuple[Citation, ...] = (),
+    reads: tuple[ReadAttempt, ...] = (),
+    usage: tuple[ModelUsage, ...] = (),
 ) -> str:
-    notice = (
-        "Sources were discovered, deduplicated, and cited. Claim extraction and "
-        "synthesis are the next phase."
-        if citations
-        else "Phase 0: sources were discovered and deduplicated. LLM planning, claim "
-        "extraction, gap checks and synthesis are the next phase."
-    )
-    lines = [
-        f"# Research dossier: {plan.question}",
-        "",
-        f"Generated: {utc_now()}",
-        "",
-        f"> {notice}",
-        "",
-        "## Plan",
-        "",
-    ]
-
+    lines = ["## Plan", ""]
     for index, sub_question in enumerate(plan.sub_questions, start=1):
         lines.append(f"{index}. **{sub_question.question}** — {sub_question.rationale}")
 
@@ -61,7 +56,7 @@ def render_dossier(
             lines.append(f"   {source.snippet}")
         lines.append("")
 
-    lines.extend(["## Citations", "", render_citations(citations), ""])
+    lines.extend(["", "## Citations", "", render_citations(citations), ""])
     lines.extend(
         [
             "## Search attempts",
@@ -77,17 +72,71 @@ def render_dossier(
             f"| {attempt.provider} | {status} | {attempt.count} | {attempt.latency_ms}ms |"
         )
 
-    lines.extend(
-        [
-            "",
-            "## Next",
-            "",
-            "- Add an LLM planner to refine sub-questions and search terms.",
-            "- Read sources and extract claims into the citation ledger.",
-            "- Add a gap check and one or two follow-up rounds.",
-            "- Synthesize a report with inline citations.",
-        ]
+    if reads:
+        lines.extend(
+            [
+                "",
+                "## Sources read",
+                "",
+                "| URL | Status | Chars | Claims | Latency |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for read in reads:
+            detail = _escape(read.error)[:240] if read.error else ""
+            status = read.status if not detail else f"{read.status}: {detail}"
+            lines.append(
+                f"| {_escape(read.url)} | {status} | {read.chars} | "
+                f"{read.claims} | {read.latency_ms}ms |"
+            )
+
+    if usage:
+        lines.extend(
+            [
+                "",
+                "## Usage",
+                "",
+                "| Provider | Model | Calls | Input | Output |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for item in usage:
+            lines.append(
+                f"| {_escape(item.provider)} | {_escape(item.model)} | "
+                f"{item.calls} | {item.input_tokens} | {item.output_tokens} |"
+            )
+
+    return "\n".join(lines).rstrip()
+
+
+def render_dossier(
+    plan: ResearchPlan,
+    sources: tuple[Source, ...],
+    attempts: tuple[SearchAttempt, ...],
+    citations: tuple[Citation, ...] = (),
+) -> str:
+    notice = (
+        "Sources were discovered, deduplicated, and cited."
+        if citations
+        else "Retrieval-only run. Use `indagar research --llm` for LLM planning, "
+        "source reading, claim extraction, gap checks, and synthesis."
     )
+    lines = [
+        f"# Research dossier: {plan.question}",
+        "",
+        f"Generated: {utc_now()}",
+        "",
+        f"> {notice}",
+        "",
+        render_appendix(plan, sources, attempts, citations),
+        "",
+        "## Next",
+        "",
+        "- Run with `--llm` for the full planner, reader, gap-check, and synthesis loop.",
+        "- Add source-type confidence labels and academic providers.",
+        "- Add a pre-run cost estimate and provider rate limiting.",
+        "- Build the web UI and desktop shell.",
+    ]
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -144,7 +193,7 @@ async def run_research(
     selected = tuple(selected)
     report = render_dossier(plan, selected, tuple(attempts))
     return Run(
-        id=_run_id(plan.question),
+        id=run_id(plan.question),
         question=plan.question,
         plan=plan,
         sources=selected,
@@ -153,4 +202,4 @@ async def run_research(
     )
 
 
-__all__ = ["render_dossier", "run_research"]
+__all__ = ["render_appendix", "render_dossier", "run_id", "run_research"]

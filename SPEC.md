@@ -1,6 +1,6 @@
 # Indagar — design specification
 
-**Status:** Phase 1 in progress
+**Status:** Phase 1 core loop implemented
 **Name:** Indagar (Spanish: to investigate, inquire, probe)
 **Licence:** MIT
 
@@ -59,8 +59,11 @@ question
   -> save run
 ```
 
-Phase 0 uses a deterministic planner and stops after source collection. LLM
-planning, extraction, and synthesis are Phase 1.
+`indagar research` without `--llm` uses the deterministic planner and stops
+after source collection. `indagar research --llm` runs the full loop: planner,
+search, read, extract, gap check, and synthesis. A planner failure falls back
+to the deterministic plan; extraction failures skip a source; synthesis with
+unknown citations falls back to the evidence table.
 
 ## 5. Search providers
 
@@ -109,18 +112,20 @@ Model roles:
 The citation ledger is an ordered, deduplicated list of claims. Every entry has
 a stable ID, the source URL and title, a non-empty quote, an optional locator
 (page, section, or timestamp), the sub-question, and a note. The ledger refuses
-empty quotes, dedupes identical evidence, and renders a Markdown table. Raw LLM
-prompts and responses are not written to run records; only the resulting
-citations, models, and token counts should be.
+empty quotes, dedupes identical evidence, and renders a Markdown table. Raw
+prompts and provider envelopes are not written to run records; the run stores
+the final report, citations, source-read status, models, and token counts.
 
 ## 7. Budgets and rate limits
 
 Every run has explicit caps:
 
 - `max_depth` follow-up rounds
+- `max_follow_ups` questions per gap check
 - `max_sources` total sources
 - `max_seconds` wall clock
 - `max_tokens` per model call and per run
+- `max_content_chars` per source and `max_claims` per source
 - `concurrency` 2-4 by default
 
 Controls:
@@ -129,7 +134,8 @@ Controls:
 - Search and page caches.
 - Small/local model for extraction and summarisation.
 - Stop and resume: a run is a saved state, not a single function call.
-- Visible estimate before a run and actual usage after it.
+- Actual token usage is recorded per provider/model; a pre-run estimate and
+  provider rate limiting are still to come.
 
 Deep research is mostly a scheduling and grounding problem. Treat every network
 call as budgeted.
@@ -140,9 +146,11 @@ call as budgeted.
 src/indagar/
   cli.py            Typer commands: doctor, llm, search, research
   config.py         Environment settings and provider status
-  models.py         Source, Citation, SubQuestion, ResearchPlan, SearchOutcome, Run
+  models.py         Source, Citation, SubQuestion, ResearchPlan, ReadAttempt,
+                    ModelUsage, SearchOutcome, Run
   citations.py      Citation ledger, dedupe, Markdown rendering
   store.py          Run JSON + Markdown storage
+  usage.py          Per-model call and token accounting
   llm/
     base.py         LLMProvider protocol, response, errors
     anthropic.py    Anthropic Messages adapter
@@ -153,12 +161,18 @@ src/indagar/
     providers.py    Firecrawl, Brave, Serper, SearXNG
     chain.py        Ordered fallback, dedupe, cache
   research/
-    planner.py      Deterministic Phase 0 planner
-    loop.py         Search, collect, dedupe, dossier
+    planner.py      Deterministic and LLM planners
+    reader.py       Firecrawl, simple HTTP, and fallback readers
+    extract.py      Verbatim claim extraction with source checks
+    gaps.py         Bounded follow-up question check
+    synthesize.py   Citation-checked narrative
+    loop.py         Phase 0 search, collect, dedupe, dossier
+    deep.py         Full planner -> read -> extract -> gap -> synthesize loop
+    json_utils.py   Tolerant JSON object parsing
 ```
 
-Phase 1 still adds `research/extract.py`, `research/gaps.py`, and
-`research/synthesize.py`. The provider layer and citation ledger are done.
+The Phase 1 core loop is implemented. Pre-run cost estimates, provider rate
+limiting, resume, and the web UI remain.
 
 ## 9. Interfaces
 
@@ -169,6 +183,7 @@ indagar doctor
 indagar llm "prompt" --role writer
 indagar search "question" --limit 8
 indagar research "question" --max-sources 12 --out report.md
+indagar research "question" --llm --depth 1 --max-sources 12
 ```
 
 ### Web UI (Phase 2)
@@ -203,7 +218,7 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 | Phase | Scope |
 |---|---|
 | 0 | Skeleton: CLI, search chain, deterministic plan, source dossier, tests, CI |
-| 1 | LLM planner, reader/extractor, gap loop, synthesis, citation ledger, cost panel |
+| 1 | LLM planner, reader/extractor, gap loop, synthesis, citation ledger, usage panel |
 | 2 | Web UI, resume, source inspector, exports |
 | 3 | Desktop shell, academic APIs, podcasts/videos, provider-native search as an option |
 
@@ -219,8 +234,12 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 
 - `indagar llm` works with Anthropic and OpenAI-compatible endpoints.
 - Provider and model selection is role-aware and fails clearly when unset.
+- `indagar research --llm` plans, reads, extracts, gap-checks, and synthesizes.
+- Extracted quotes must appear in the source text; ungrounded quotes are dropped.
+- Synthesis rejects unknown citation IDs and falls back to the evidence table.
 - The citation ledger rejects empty quotes and dedupes identical evidence.
-- Dossiers render a citation section, including an empty state.
-- Raw prompts, responses, and API keys never enter run records.
-- Tests cover request shaping, responses, errors, and citation behaviour.
+- Reports render sources, citations, source-read status, and per-model usage.
+- Raw prompts, provider payloads, and API keys never enter run records.
+- Tests cover request shaping, responses, errors, readers, extraction, gaps,
+  synthesis, citation validation, and the full loop with fakes.
 - `ruff check`, `ruff format --check`, and `pytest` pass.

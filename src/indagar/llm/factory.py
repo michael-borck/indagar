@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from ..config import DEFAULT_OPENAI_BASE_URL, Settings
 from .anthropic import AnthropicProvider
 from .base import LLM_ROLES, LLMError, LLMProvider
@@ -65,4 +67,20 @@ def build_llm(
     raise LLMError("config", f"Unknown LLM provider: {provider}")
 
 
-__all__ = ["build_llm"]
+@dataclass(frozen=True)
+class LLMSet:
+    planner: LLMProvider
+    reader: LLMProvider
+    writer: LLMProvider
+
+
+def build_llms(settings: Settings) -> LLMSet:
+    """Build one provider per role so models can differ by job."""
+    return LLMSet(
+        planner=build_llm(settings, role="planner"),
+        reader=build_llm(settings, role="reader"),
+        writer=build_llm(settings, role="writer"),
+    )
+
+
+__all__ = ["LLMSet", "build_llm", "build_llms"]

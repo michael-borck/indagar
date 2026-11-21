@@ -7,14 +7,19 @@ Changelog, and the project uses semantic versioning.
 
 ### Added
 
+- Full Phase 1 loop behind `indagar research --llm`: LLM planning, page
+  reading, verbatim quote extraction, a bounded gap check, and synthesis.
+- Firecrawl, simple HTTP, and fallback readers with source text truncation.
+- Citation-checked synthesis that rejects unknown IDs and falls back to a
+  grounded evidence table.
 - Anthropic Messages and OpenAI-compatible LLM adapters.
 - Provider selection plus per-role planner, reader, and writer models.
 - `indagar llm` smoke-test command, with JSON mode and token usage.
 - Citation model and ledger with stable IDs, dedupe, source grouping, and
   Markdown rendering.
-- Citation section in dossiers, including an empty state.
-- Tests for request shaping, responses, errors, provider selection, and
-  citations.
+- Citation, source-read, and per-model usage sections in reports.
+- Tests for request shaping, responses, errors, provider selection, readers,
+  extraction, gap checks, synthesis, citations, usage, and the full loop.
 
 ### Changed
 

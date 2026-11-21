@@ -13,7 +13,8 @@ from rich.table import Table
 from . import __version__
 from .config import Settings
 from .llm.base import LLM_ROLES, LLMError
-from .llm.factory import build_llm
+from .llm.factory import build_llm, build_llms
+from .research.deep import run_deep_research
 from .research.loop import run_research
 from .search.chain import build_chain
 from .store import save_run
@@ -73,7 +74,7 @@ def doctor() -> None:
     console.print(
         f"Budgets: sources={settings.max_sources}, "
         f"seconds={settings.max_seconds}, search_limit={settings.search_limit}, "
-        f"llm_max_tokens={settings.llm_max_tokens}"
+        f"depth={settings.max_depth}, llm_max_tokens={settings.llm_max_tokens}"
     )
     if not configured:
         console.print(
@@ -171,17 +172,40 @@ def search(
 @app.command()
 def research(
     question: str = typer.Argument(..., help="Question or topic to research"),
+    llm: bool = typer.Option(
+        False,
+        "--llm",
+        help="Use configured LLMs for planning, reading, gap checks, and synthesis",
+    ),
+    depth: int | None = typer.Option(
+        None,
+        "--depth",
+        min=0,
+        max=2,
+        help="Follow-up rounds for --llm; 0 disables",
+    ),
     max_sources: int = typer.Option(0, "--max-sources", min=0, help="0 uses INDAGAR_MAX_SOURCES"),
     out: Path | None = typer.Option(None, "--out", "-o", help="Markdown output path"),
 ) -> None:
-    """Plan sub-questions, search, and write a source dossier."""
+    """Plan sub-questions, search, and write a source dossier or cited report."""
     settings = _settings_or_exit()
     if max_sources:
         settings = replace(settings, max_sources=max_sources)
 
     try:
-        run = asyncio.run(run_research(question, settings))
-    except (RuntimeError, ValueError) as exc:
+        if llm:
+            llms = build_llms(settings)
+            run = asyncio.run(
+                run_deep_research(
+                    question,
+                    settings,
+                    llms=llms,
+                    depth=depth,
+                )
+            )
+        else:
+            run = asyncio.run(run_research(question, settings))
+    except (LLMError, RuntimeError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(1) from exc
 
@@ -197,6 +221,16 @@ def research(
     for index, source in enumerate(run.sources, start=1):
         table.add_row(str(index), source.title, source.domain, source.provider)
     console.print(table)
+
+    if run.citations:
+        console.print(f"Citations: {len(run.citations)}")
+    if run.reads:
+        console.print(f"Sources read: {len(run.reads)}")
+    if run.usage:
+        calls = sum(item.calls for item in run.usage)
+        input_tokens = sum(item.input_tokens for item in run.usage)
+        output_tokens = sum(item.output_tokens for item in run.usage)
+        console.print(f"LLM usage: {calls} calls · {input_tokens} in / {output_tokens} out")
 
     json_path, markdown_path = save_run(run, out=out)
     console.print(f"Run record: {json_path}")
