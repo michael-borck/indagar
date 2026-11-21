@@ -195,8 +195,8 @@ across the planner, reader, and writer roles.
 - [ ] Desktop shell, podcasts/videos, provider-native search
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.4.0`; Phase 3 academic search is version `0.5.0` on `main` and is
-next to publish.
+PyPI has `0.5.0`, which starts Phase 3 with academic search. The desktop shell,
+podcast/video sources, and provider-native search are next.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
