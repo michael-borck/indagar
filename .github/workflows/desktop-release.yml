@@ -15,6 +15,7 @@ jobs:
     with:
       product-name: Indagar
       node-version: "24"
+      cache: ""
       project-path: desktop
       install-command: npm ci
       build-command: |
