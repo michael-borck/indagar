@@ -12,6 +12,8 @@ pytest -q
 indagar doctor
 indagar llm "Say hello" --role writer
 indagar research "What is X?" --llm --depth 0 --max-sources 3
+indagar estimate "What is X?" --max-sources 3 --depth 0
+indagar research "What is X?" --llm --dry-run
 ```
 
 ## Invariants
@@ -26,6 +28,8 @@ indagar research "What is X?" --llm --depth 0 --max-sources 3
 - Synthesis may cite only ledger IDs. Unknown IDs are a hard error and trigger
   the evidence-table fallback.
 - Do not store raw LLM prompts or provider payloads in run records. Store the final report, citations, source-read status, and usage.
+- Retry only transient failures (`408`, `425`, `429`, `5xx`, transport errors) and honour `Retry-After`.
+- Estimates are rough upper bounds. Cost estimates use user-supplied per-million-token rates, not built-in pricing.
 - Web and media sources are not peer-reviewed and must not be labelled as such.
 - Keep the CLI flow: `doctor` is offline, `search` is retrieval-only, `research`
   writes a run record and a report or dossier.

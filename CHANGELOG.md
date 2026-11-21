@@ -3,6 +3,20 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.2.1] - 2026-11-21
+
+### Added
+
+- `indagar estimate` and `research --dry-run` for offline pre-run budgets.
+- Optional input/output cost rates for dollar estimates.
+- LLM retry/backoff on `429`, `5xx`, and transport errors, with `Retry-After`.
+- Shared minimum interval between LLM calls.
+- Tests for retries, rate limiting, estimates, and retry/cost settings.
+
+### Changed
+
+- `indagar doctor` reports retry count and minimum request interval.
+
 ## [0.2.0] - 2026-11-21
 
 ### Added

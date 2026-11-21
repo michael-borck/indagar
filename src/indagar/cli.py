@@ -12,6 +12,7 @@ from rich.table import Table
 
 from . import __version__
 from .config import Settings
+from .estimate import cost_for_tokens, estimate_run
 from .llm.base import LLM_ROLES, LLMError
 from .llm.factory import build_llm, build_llms
 from .research.deep import run_deep_research
@@ -74,7 +75,9 @@ def doctor() -> None:
     console.print(
         f"Budgets: sources={settings.max_sources}, "
         f"seconds={settings.max_seconds}, search_limit={settings.search_limit}, "
-        f"depth={settings.max_depth}, llm_max_tokens={settings.llm_max_tokens}"
+        f"depth={settings.max_depth}, retries={settings.llm_max_retries}, "
+        f"min_interval={settings.llm_min_interval}s, "
+        f"llm_max_tokens={settings.llm_max_tokens}"
     )
     if not configured:
         console.print(
@@ -133,6 +136,46 @@ def llm_prompt(
 
 
 @app.command()
+def estimate(
+    question: str = typer.Argument(..., help="Question or topic to estimate"),
+    llm: bool = typer.Option(True, "--llm/--no-llm", help="Include LLM calls"),
+    depth: int | None = typer.Option(None, "--depth", min=0, max=2),
+    max_sources: int = typer.Option(0, "--max-sources", min=0, help="0 uses INDAGAR_MAX_SOURCES"),
+) -> None:
+    """Print a rough pre-run budget estimate without calling any provider."""
+    settings = _settings_or_exit()
+    try:
+        result = estimate_run(
+            question,
+            settings,
+            max_sources=max_sources or None,
+            depth=depth,
+            llm=llm,
+        )
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    table = Table(title="Run estimate")
+    table.add_column("Item")
+    table.add_column("Value", justify="right")
+    table.add_row("Searches", str(result.searches))
+    table.add_row("Sources", str(result.sources))
+    table.add_row("LLM calls", str(result.llm_calls))
+    table.add_row("Input tokens", f"~{result.input_tokens:,}")
+    table.add_row("Output tokens", f"~{result.output_tokens:,}")
+    if result.cost_usd is not None:
+        table.add_row("Estimated cost", f"~${result.cost_usd:.4f}")
+    console.print(table)
+    if result.llm_calls and result.cost_usd is None:
+        console.print(
+            "[dim]Set INDAGAR_INPUT_COST_PER_MTOK and "
+            "INDAGAR_OUTPUT_COST_PER_MTOK for a dollar estimate.[/dim]"
+        )
+    console.print("[dim]Rough upper bound; actual usage is recorded in the run.[/dim]")
+
+
+@app.command()
 def search(
     query: str = typer.Argument(..., help="Search query"),
     limit: int = typer.Option(8, "--limit", "-n", min=1, max=20),
@@ -186,11 +229,22 @@ def research(
     ),
     max_sources: int = typer.Option(0, "--max-sources", min=0, help="0 uses INDAGAR_MAX_SOURCES"),
     out: Path | None = typer.Option(None, "--out", "-o", help="Markdown output path"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print the estimate and exit"),
 ) -> None:
     """Plan sub-questions, search, and write a source dossier or cited report."""
     settings = _settings_or_exit()
     if max_sources:
         settings = replace(settings, max_sources=max_sources)
+
+    try:
+        estimate = estimate_run(question, settings, depth=depth, llm=llm)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
+    if llm or dry_run:
+        console.print(estimate.line())
+    if dry_run:
+        return
 
     try:
         if llm:
@@ -231,10 +285,13 @@ def research(
         input_tokens = sum(item.input_tokens for item in run.usage)
         output_tokens = sum(item.output_tokens for item in run.usage)
         console.print(f"LLM usage: {calls} calls · {input_tokens} in / {output_tokens} out")
+        cost = cost_for_tokens(input_tokens, output_tokens, settings)
+        if cost is not None:
+            console.print(f"Token cost: ${cost:.4f}")
 
     json_path, markdown_path = save_run(run, out=out)
     console.print(f"Run record: {json_path}")
-    console.print(f"Dossier: {markdown_path}")
+    console.print(f"Markdown: {markdown_path}")
 
 
 def main() -> None:

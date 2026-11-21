@@ -34,6 +34,12 @@ indagar research "Does retrieval augmented generation reduce hallucination?" \
 # Full Phase 1 loop; requires an LLM provider and model.
 indagar research "Does retrieval augmented generation reduce hallucination?" \
   --llm --max-sources 10 --depth 1
+
+# See the rough budget before running.
+indagar estimate "Does retrieval augmented generation reduce hallucination?" \
+  --max-sources 10 --depth 1
+indagar research "Does retrieval augmented generation reduce hallucination?" \
+  --llm --dry-run
 ```
 
 If the checkout is on an exFAT drive, create the virtual environment on a
@@ -105,6 +111,11 @@ Copy `.env.example` to `.env` and set the providers you have.
 | `INDAGAR_LLM_MAX_TOKENS` | Tokens per call. Default `1024` |
 | `INDAGAR_LLM_TEMPERATURE` | Sampling temperature. Default `0.2` |
 | `INDAGAR_LLM_TIMEOUT` | LLM request timeout in seconds. Default `60` |
+| `INDAGAR_LLM_MAX_RETRIES` | Retries on 429/5xx/transport errors. Default `2` |
+| `INDAGAR_RETRY_BASE_SECONDS` | Exponential backoff base. Default `0.5` |
+| `INDAGAR_LLM_MIN_INTERVAL` | Minimum seconds between LLM calls. Default `0` |
+| `INDAGAR_INPUT_COST_PER_MTOK` | Optional input USD per million tokens |
+| `INDAGAR_OUTPUT_COST_PER_MTOK` | Optional output USD per million tokens |
 | `INDAGAR_MAX_SOURCES` | Sources per run. Default `12` |
 | `INDAGAR_MAX_SECONDS` | Wall-clock budget. Default `300` |
 | `INDAGAR_SEARCH_LIMIT` | Results requested per sub-question. Default `8` |
@@ -115,11 +126,18 @@ Copy `.env.example` to `.env` and set the providers you have.
 | `INDAGAR_SYNTHESIS_MAX_TOKENS` | Synthesis output cap. Default `2048` |
 | `INDAGAR_READER_TIMEOUT` | Page read timeout in seconds. Default `45` |
 
-`indagar doctor` shows what is configured.
+`indagar doctor` shows what is configured. `indagar estimate` is offline and
+prints a rough upper bound for searches, sources, LLM calls, and tokens. Set
+the two cost variables above to add a dollar estimate; rates are user-supplied
+and model-specific.
+
+LLM requests retry on `429`, `5xx`, and transport failures with exponential
+backoff and `Retry-After` support. `INDAGAR_LLM_MIN_INTERVAL` spaces calls
+across the planner, reader, and writer roles.
 
 ## Status
 
-- [x] CLI with `doctor`, `llm`, `search`, and `research`
+- [x] CLI with `doctor`, `llm`, `estimate`, `search`, and `research`
 - [x] Firecrawl, Brave, Serper, and SearXNG adapters
 - [x] Ordered fallback, over-fetch, URL dedupe, and a 10-minute cache
 - [x] Deterministic research plan and cited source dossier
@@ -127,8 +145,9 @@ Copy `.env.example` to `.env` and set the providers you have.
 - [x] LLM planner, source reader, verbatim quote extraction, gap loop, and synthesis
 - [x] Citation ledger with dedupe, source grouping, and Markdown rendering
 - [x] Per-run source-read and model-usage tables
-- [ ] Cost estimate before a run and provider rate limiting
-- [ ] Web UI and desktop shell
+- [x] Pre-run token/cost estimate, LLM retry/backoff, and request spacing
+- [ ] Resume, concurrency, and web UI
+- [ ] Desktop shell
 - [ ] Academic, podcast, and video sources
 
 PyPI has `0.2.0`, which includes the Phase 1 core loop. Phase 2 is next.

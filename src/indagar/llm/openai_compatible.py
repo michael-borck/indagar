@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import httpx
 
 from ..config import DEFAULT_OPENAI_BASE_URL
+from ..rate_limit import RateLimiter, RetryPolicy
 from .base import LLMError, LLMResponse, status_error
 
 
@@ -40,6 +41,8 @@ class OpenAICompatibleProvider:
         temperature: float = 0.2,
         timeout: float = 60.0,
         client: httpx.AsyncClient | None = None,
+        retry: RetryPolicy | None = None,
+        limiter: RateLimiter | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -48,6 +51,8 @@ class OpenAICompatibleProvider:
         self.temperature = temperature
         self.timeout = timeout
         self._client = client
+        self.retry = retry or RetryPolicy()
+        self.limiter = limiter
 
     @asynccontextmanager
     async def _client_ctx(self) -> AsyncIterator[httpx.AsyncClient]:
@@ -89,8 +94,12 @@ class OpenAICompatibleProvider:
             payload["response_format"] = {"type": "json_object"}
 
         try:
+            if self.limiter is not None:
+                await self.limiter.wait()
             async with self._client_ctx() as client:
-                response = await client.post(
+                response = await self.retry.request(
+                    client,
+                    "POST",
                     f"{self.base_url}/chat/completions",
                     json=payload,
                     headers=headers,

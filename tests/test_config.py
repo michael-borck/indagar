@@ -32,6 +32,22 @@ def test_llm_provider_normalization(monkeypatch):
     assert Settings.from_env().llm_provider == "openai-compatible"
 
 
+def test_retry_and_cost_settings(monkeypatch):
+    monkeypatch.setenv("INDAGAR_LLM_MAX_RETRIES", "4")
+    monkeypatch.setenv("INDAGAR_RETRY_BASE_SECONDS", "1.5")
+    monkeypatch.setenv("INDAGAR_LLM_MIN_INTERVAL", "0.25")
+    monkeypatch.setenv("INDAGAR_INPUT_COST_PER_MTOK", "3")
+    monkeypatch.setenv("INDAGAR_OUTPUT_COST_PER_MTOK", "15")
+
+    settings = Settings.from_env()
+
+    assert settings.llm_max_retries == 4
+    assert settings.retry_base_seconds == 1.5
+    assert settings.llm_min_interval == 0.25
+    assert settings.input_cost_per_mtok == 3.0
+    assert settings.output_cost_per_mtok == 15.0
+
+
 def test_llm_timeout_uses_seconds_not_temperature_bounds(monkeypatch):
     monkeypatch.setenv("INDAGAR_LLM_TIMEOUT", "60")
 

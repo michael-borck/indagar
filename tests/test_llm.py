@@ -9,8 +9,9 @@ import pytest
 from indagar.config import Settings
 from indagar.llm.anthropic import AnthropicProvider
 from indagar.llm.base import LLMError
-from indagar.llm.factory import build_llm
+from indagar.llm.factory import build_llm, build_llms
 from indagar.llm.openai_compatible import OpenAICompatibleProvider
+from indagar.rate_limit import RetryPolicy
 
 
 def test_openai_compatible_request_and_response():
@@ -107,6 +108,7 @@ def test_provider_error_includes_status_and_detail():
                 base_url="https://llm.example/v1",
                 model="test-model",
                 client=client,
+                retry=RetryPolicy(max_retries=0),
             )
             await provider.complete("Hello")
 
@@ -116,6 +118,51 @@ def test_provider_error_includes_status_and_detail():
     assert excinfo.value.status == 429
     assert "429" in str(excinfo.value)
     assert "rate limited" in str(excinfo.value)
+
+
+def test_openai_provider_retries_a_transient_error():
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return httpx.Response(429, json={"error": {"message": "rate limited"}})
+        return httpx.Response(
+            200,
+            json={
+                "model": "test-model",
+                "choices": [{"message": {"content": "Recovered."}}],
+                "usage": {"prompt_tokens": 2, "completion_tokens": 1},
+            },
+        )
+
+    async def run() -> object:
+        sleeps: list[float] = []
+
+        async def sleep(delay: float) -> None:
+            sleeps.append(delay)
+
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://llm.example/v1",
+                model="test-model",
+                client=client,
+                retry=RetryPolicy(
+                    max_retries=1,
+                    base_seconds=0.1,
+                    sleep=sleep,
+                    rng=lambda: 0.5,
+                ),
+            )
+            response = await provider.complete("Hello")
+        return response, sleeps
+
+    response, sleeps = asyncio.run(run())
+
+    assert response.text == "Recovered."
+    assert calls["count"] == 2
+    assert len(sleeps) == 1
 
 
 def test_build_anthropic_from_settings():
@@ -129,6 +176,23 @@ def test_build_anthropic_from_settings():
 
     assert isinstance(provider, AnthropicProvider)
     assert provider.model == "claude-test"
+
+
+def test_factory_wires_retry_and_shared_limiter():
+    settings = Settings(
+        anthropic_api_key="key",
+        llm_provider="anthropic",
+        llm_model="claude-test",
+        llm_max_retries=3,
+        llm_min_interval=1.0,
+    )
+
+    llms = build_llms(settings)
+
+    assert llms.planner.retry.max_retries == 3
+    assert llms.planner.limiter is not None
+    assert llms.planner.limiter is llms.reader.limiter
+    assert llms.reader.limiter is llms.writer.limiter
 
 
 def test_build_openai_compatible_local_without_key():

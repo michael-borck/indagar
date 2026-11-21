@@ -1,6 +1,6 @@
 # Indagar — design specification
 
-**Status:** Phase 1 core loop implemented
+**Status:** Phase 1 core loop and polish implemented
 **Name:** Indagar (Spanish: to investigate, inquire, probe)
 **Licence:** MIT
 
@@ -130,12 +130,18 @@ Every run has explicit caps:
 
 Controls:
 
-- Per-provider token-bucket rate limiter and exponential backoff.
-- Search and page caches.
+- LLM requests retry on `429`, `5xx`, and transport failures with exponential
+  backoff, jitter, and `Retry-After` support.
+- A shared minimum interval spaces calls across the planner, reader, and writer
+  roles (`INDAGAR_LLM_MIN_INTERVAL`).
+- Search results and identical queries are cached; page-level caching is still
+  to come.
 - Small/local model for extraction and summarisation.
-- Stop and resume: a run is a saved state, not a single function call.
-- Actual token usage is recorded per provider/model; a pre-run estimate and
-  provider rate limiting are still to come.
+- Stop and resume: a run is a saved state, not a single function call; resume
+  is Phase 2.
+- A pre-run estimate reports upper-bound searches, sources, calls, tokens, and
+  an optional dollar cost from user-supplied per-million-token rates.
+- Actual token usage is recorded per provider/model after the run.
 
 Deep research is mostly a scheduling and grounding problem. Treat every network
 call as budgeted.
@@ -151,6 +157,8 @@ src/indagar/
   citations.py      Citation ledger, dedupe, Markdown rendering
   store.py          Run JSON + Markdown storage
   usage.py          Per-model call and token accounting
+  estimate.py       Pre-run tokens, calls, and optional cost estimate
+  rate_limit.py     LLM retry/backoff and request spacing
   llm/
     base.py         LLMProvider protocol, response, errors
     anthropic.py    Anthropic Messages adapter
@@ -181,9 +189,11 @@ limiting, resume, and the web UI remain.
 ```bash
 indagar doctor
 indagar llm "prompt" --role writer
+indagar estimate "question" --max-sources 12 --depth 1
 indagar search "question" --limit 8
 indagar research "question" --max-sources 12 --out report.md
 indagar research "question" --llm --depth 1 --max-sources 12
+indagar research "question" --llm --dry-run
 ```
 
 ### Web UI (Phase 2)
@@ -239,7 +249,11 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 - Synthesis rejects unknown citation IDs and falls back to the evidence table.
 - The citation ledger rejects empty quotes and dedupes identical evidence.
 - Reports render sources, citations, source-read status, and per-model usage.
+- `indagar estimate` and `research --dry-run` report an upper-bound budget
+  without calling a provider.
+- LLM calls retry transient failures and can be spaced by a shared interval.
 - Raw prompts, provider payloads, and API keys never enter run records.
-- Tests cover request shaping, responses, errors, readers, extraction, gaps,
-  synthesis, citation validation, and the full loop with fakes.
+- Tests cover request shaping, responses, errors, retries, rate limiting,
+  estimates, readers, extraction, gaps, synthesis, citation validation, and the
+  full loop with fakes.
 - `ruff check`, `ruff format --check`, and `pytest` pass.

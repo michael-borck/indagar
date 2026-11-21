@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import httpx
 
 from ..config import DEFAULT_ANTHROPIC_BASE_URL
+from ..rate_limit import RateLimiter, RetryPolicy
 from .base import LLMError, LLMResponse, status_error
 
 ANTHROPIC_VERSION = "2023-06-01"
@@ -30,6 +31,8 @@ class AnthropicProvider:
         temperature: float = 0.2,
         timeout: float = 60.0,
         client: httpx.AsyncClient | None = None,
+        retry: RetryPolicy | None = None,
+        limiter: RateLimiter | None = None,
     ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
@@ -40,6 +43,8 @@ class AnthropicProvider:
         self.temperature = temperature
         self.timeout = timeout
         self._client = client
+        self.retry = retry or RetryPolicy()
+        self.limiter = limiter
 
     @asynccontextmanager
     async def _client_ctx(self) -> AsyncIterator[httpx.AsyncClient]:
@@ -89,8 +94,12 @@ class AnthropicProvider:
         }
 
         try:
+            if self.limiter is not None:
+                await self.limiter.wait()
             async with self._client_ctx() as client:
-                response = await client.post(
+                response = await self.retry.request(
+                    client,
+                    "POST",
                     f"{self.base_url}/v1/messages",
                     json=payload,
                     headers=headers,

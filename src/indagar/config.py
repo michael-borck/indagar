@@ -36,6 +36,16 @@ def _env_float(
         return default
 
 
+def _env_optional_float(name: str) -> float | None:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return None
+
+
 def _normalize_llm_provider(raw: str | None) -> str | None:
     value = (raw or "").strip().lower().replace("_", "-")
     if not value:
@@ -73,6 +83,11 @@ class Settings:
     llm_max_tokens: int = 1024
     llm_temperature: float = 0.2
     llm_timeout: float = 60.0
+    llm_max_retries: int = 2
+    retry_base_seconds: float = 0.5
+    llm_min_interval: float = 0.0
+    input_cost_per_mtok: float | None = None
+    output_cost_per_mtok: float | None = None
     max_sources: int = 12
     max_seconds: int = 300
     search_limit: int = 8
@@ -112,6 +127,21 @@ class Settings:
                 minimum=1.0,
                 maximum=3600.0,
             ),
+            llm_max_retries=_env_int("INDAGAR_LLM_MAX_RETRIES", 2, minimum=0),
+            retry_base_seconds=_env_float(
+                "INDAGAR_RETRY_BASE_SECONDS",
+                0.5,
+                minimum=0.0,
+                maximum=60.0,
+            ),
+            llm_min_interval=_env_float(
+                "INDAGAR_LLM_MIN_INTERVAL",
+                0.0,
+                minimum=0.0,
+                maximum=60.0,
+            ),
+            input_cost_per_mtok=_env_optional_float("INDAGAR_INPUT_COST_PER_MTOK"),
+            output_cost_per_mtok=_env_optional_float("INDAGAR_OUTPUT_COST_PER_MTOK"),
             max_sources=_env_int("INDAGAR_MAX_SOURCES", 12),
             max_seconds=_env_int("INDAGAR_MAX_SECONDS", 300),
             search_limit=_env_int("INDAGAR_SEARCH_LIMIT", 8),
