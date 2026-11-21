@@ -10,6 +10,13 @@ Phase 1 core loop is implemented. `research` is retrieval-only by default;
 adding `--llm` turns on LLM planning, source reading, grounded quote
 extraction, a bounded gap check, and citation-checked synthesis.
 
+## Install
+
+```bash
+uv pip install indagar
+# or: pip install indagar
+```
+
 ## Quick start
 
 ```bash
@@ -124,8 +131,7 @@ Copy `.env.example` to `.env` and set the providers you have.
 - [ ] Web UI and desktop shell
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.1.0`. The Phase 1 work on `main` is version `0.2.0` and is not
-published yet.
+PyPI has `0.2.0`, which includes the Phase 1 core loop. Phase 2 is next.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
