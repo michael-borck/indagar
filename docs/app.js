@@ -4,8 +4,8 @@ const RELEASE_BASE = `https://github.com/${REPO}/releases/latest/download/`;
 const downloads = {
   mac: {
     label: "macOS",
-    note: "Universal · macOS 11+ · includes engine · right-click Open if Gatekeeper blocks",
-    file: "Indagar-mac-universal.dmg",
+    note: "Apple Silicon · macOS 11+ · includes engine",
+    file: "Indagar-mac-arm64.dmg",
     pattern: /mac.*\.dmg$/i,
   },
   win: {

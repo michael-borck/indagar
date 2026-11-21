@@ -9,7 +9,10 @@ files:
   - setup.html
   - setup-preload.js
   - package.json
-afterPack: scripts/afterPack.js
+extraResources:
+  - from: sidecar/wheel
+    to: sidecar/wheel
+afterSign: scripts/notarize.js
 asar: true
 mac:
   category: public.app-category.productivity
@@ -17,7 +20,7 @@ mac:
   target:
     - dmg
     - zip
-  artifactName: Indagar-mac-universal.${ext}
+  artifactName: Indagar-mac-arm64.${ext}
   hardenedRuntime: true
   notarize: false
 win:

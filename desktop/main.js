@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { spawn } = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
@@ -16,6 +17,26 @@ let setupLogs = [];
 let serverUrl = "";
 let enginePath = "";
 let quitting = false;
+
+const UV_VERSION = "0.13.9";
+const UV_ASSETS = {
+  "darwin-arm64": {
+    file: "uv-aarch64-apple-darwin.tar.gz",
+    sha256: "5aeca67f2283f75235de40d0bd9c0a5bbc5fce23b6d48b3bf9fa1b2db08382ca",
+  },
+  "darwin-x64": {
+    file: "uv-x86_64-apple-darwin.tar.gz",
+    sha256: "617a3211261b0fc739562f0071aa34e9739797c510208ede8e2977c30903d041",
+  },
+  "win32-x64": {
+    file: "uv-x86_64-pc-windows-msvc.zip",
+    sha256: "edd61f7f5728a56cc62455386661860bdfc7bab65872f39b0c25bdcc1d8e1beb",
+  },
+  "linux-x64": {
+    file: "uv-x86_64-unknown-linux-gnu.tar.gz",
+    sha256: "a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5",
+  },
+};
 
 function findFreePort() {
   return new Promise((resolve, reject) => {
@@ -54,14 +75,11 @@ function venvBin(venv, executable) {
     : path.join(venv, "bin", executable);
 }
 
-function bundledUv() {
-  let name = "uv-x64";
-  if (process.platform === "win32") {
-    name = "uv-x64.exe";
-  } else if (process.platform === "darwin" && process.arch === "arm64") {
-    name = "uv-arm64";
-  }
-  return path.join(sidecarRoot(), "uv", name);
+function uvAsset() {
+  const key = `${process.platform}-${process.arch}`;
+  const asset = UV_ASSETS[key];
+  if (!asset) throw new Error(`No uv build for ${key}.`);
+  return asset;
 }
 
 function enginePaths() {
@@ -89,8 +107,7 @@ function installedEngineVersion() {
 function engineNeedsInstall() {
   if (process.env.INDAGAR_BIN) return false;
   if (!app.isPackaged && findSystemIndagar()) return false;
-  const uv = bundledUv();
-  if (!fs.existsSync(uv)) return false;
+  if (!fs.existsSync(path.join(sidecarRoot(), "wheel"))) return false;
   return installedEngineVersion() !== app.getVersion();
 }
 
@@ -130,6 +147,82 @@ function runCommand(command, args, env, onLog) {
   });
 }
 
+function sha256(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function findFile(root, name) {
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const full = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      const found = findFile(full, name);
+      if (found) return found;
+    } else if (entry.name === name) {
+      return full;
+    }
+  }
+  return "";
+}
+
+async function ensureUv(paths) {
+  const executable = process.platform === "win32" ? "uv.exe" : "uv";
+  const uv = path.join(paths.runtime, "bin", executable);
+  const marker = path.join(paths.runtime, "uv-version");
+  if (fs.existsSync(uv) && fs.existsSync(marker)) {
+    try {
+      if (fs.readFileSync(marker, "utf8").trim() === UV_VERSION) return uv;
+    } catch {
+      // Reinstall below.
+    }
+  }
+
+  const asset = uvAsset();
+  const downloadDir = path.join(paths.runtime, "download");
+  const extractDir = path.join(paths.runtime, "uv-extract");
+  fs.mkdirSync(downloadDir, { recursive: true });
+  fs.rmSync(extractDir, { recursive: true, force: true });
+  const archive = path.join(downloadDir, asset.file);
+
+  if (!fs.existsSync(archive) || sha256(archive) !== asset.sha256) {
+    setupLog(`Downloading uv ${UV_VERSION}…`);
+    const response = await fetch(
+      `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${asset.file}`,
+    );
+    if (!response.ok) {
+      throw new Error(`uv download failed: HTTP ${response.status}`);
+    }
+    fs.writeFileSync(archive, Buffer.from(await response.arrayBuffer()));
+    if (sha256(archive) !== asset.sha256) {
+      fs.rmSync(archive, { force: true });
+      throw new Error("uv download checksum mismatch.");
+    }
+  }
+
+  setupLog("Extracting uv…");
+  fs.mkdirSync(extractDir, { recursive: true });
+  if (asset.file.endsWith(".zip")) {
+    await runCommand(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        `Expand-Archive -LiteralPath '${archive}' -DestinationPath '${extractDir}' -Force`,
+      ],
+      {},
+      setupLog,
+    );
+  } else {
+    await runCommand("tar", ["-xzf", archive, "-C", extractDir], {}, setupLog);
+  }
+  const found = findFile(extractDir, executable);
+  if (!found) throw new Error("uv binary not found in archive.");
+  fs.mkdirSync(path.dirname(uv), { recursive: true });
+  fs.copyFileSync(found, uv);
+  if (process.platform !== "win32") fs.chmodSync(uv, 0o755);
+  fs.writeFileSync(marker, `${UV_VERSION}\n`, "utf8");
+  return uv;
+}
+
 async function ensureEngine() {
   if (process.env.INDAGAR_BIN) return process.env.INDAGAR_BIN;
 
@@ -138,25 +231,17 @@ async function ensureEngine() {
     return paths.engine;
   }
 
-  const uv = bundledUv();
   const wheelDir = path.join(sidecarRoot(), "wheel");
-  if (!fs.existsSync(uv) || !fs.existsSync(wheelDir)) {
+  if (!fs.existsSync(wheelDir)) {
     const system = findSystemIndagar();
     if (system) return system;
     throw new Error(
-      "Indagar's bundled Python engine is missing from this build. Reinstall the app.",
+      "Indagar's engine wheel is missing from this build. Reinstall the app.",
     );
   }
 
-  if (process.platform !== "win32") {
-    try {
-      fs.chmodSync(uv, 0o755);
-    } catch {
-      // Packaging normally preserves the executable bit.
-    }
-  }
-
   fs.mkdirSync(paths.runtime, { recursive: true });
+  const uv = await ensureUv(paths);
   const env = {
     UV_PYTHON_INSTALL_DIR: path.join(paths.runtime, "python"),
     UV_CACHE_DIR: path.join(paths.runtime, "cache"),

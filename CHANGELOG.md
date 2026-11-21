@@ -3,6 +3,16 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.6.3] - 2026-11-21
+
+### Desktop
+
+- Sign and notarize the Apple Silicon macOS desktop app with the shared App
+  Store Connect credentials.
+- Download pinned `uv` into app data on first run instead of shipping live
+  Mach-O sidecars; the wheel remains bundled.
+- Keep the first-run Python engine setup from 0.6.2.
+
 ## [0.6.2] - 2026-11-21
 
 ### Desktop

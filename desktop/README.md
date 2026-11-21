@@ -15,27 +15,20 @@ environment.
 
 ## Bundled engine
 
-Release builds ship:
-
-- `uv` binaries for the platform/arch under `sidecar/uv/`
-- the `indagar` wheel under `sidecar/wheel/`
-- `scripts/afterPack.js`, which copies the sidecar into the packaged app after
-  the universal merge
-
-On first launch, `uv` installs Python 3.12 into the app data directory, creates
-a venv, and installs the bundled wheel with `web` and `media` extras. The
-engine version marker makes the app reinstall the engine after a desktop
-update. First-time setup needs an internet connection.
+Release builds ship the `indagar` wheel under `sidecar/wheel/`. On first
+launch, the app downloads a pinned `uv` binary, installs Python 3.12 into the
+app data directory, creates a venv, and installs the bundled wheel with `web`
+and `media` extras. The engine version marker makes the app reinstall the
+engine after a desktop update. First-time setup needs an internet connection.
 
 ## Packaging
 
 ```bash
-python scripts/bundle_uv.py
 python -m build --wheel --outdir sidecar/wheel ..
 npm run dist
 ```
 
-`electron-builder.yml` builds a universal macOS DMG/ZIP, a Windows NSIS
+`electron-builder.yml` builds an Apple Silicon macOS DMG/ZIP, a Windows NSIS
 installer, and a Linux AppImage. The GitHub `Desktop release` workflow runs on
 `v*` tags, builds the wheel, bundles `uv`, publishes the assets, and uploads
 `latest*.yml` for auto-update.
