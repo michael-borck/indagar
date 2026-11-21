@@ -35,6 +35,8 @@ installer, and a Linux AppImage. The GitHub `Desktop release` workflow runs on
 `v*` tags, publishes the assets, and uploads `latest*.yml` for auto-update.
 
 Packaged builds check GitHub releases every six hours. macOS auto-update
-requires a signed build; Windows and Linux update unsigned builds but still
-show OS security warnings. The app is still a shell around the installed
-`indagar` command, not a bundled Python distribution.
+requires a signed build; add `APPLE_CERTIFICATE` and
+`APPLE_CERTIFICATE_PASSWORD` repository secrets and the release workflow signs
+the app. Windows and Linux update unsigned builds but still show OS security
+warnings. The app is still a shell around the installed `indagar` command, not a
+bundled Python distribution.

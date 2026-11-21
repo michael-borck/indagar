@@ -140,7 +140,8 @@ npm start
 
 The Electron shell starts `indagar serve`, waits for health, and opens the UI
 in a native window. Set `INDAGAR_BIN=/path/to/indagar` if it is not on `PATH`.
-The shell is source-only; packaging and signing are separate.
+Packaged builds check GitHub for updates; macOS auto-update needs a signed
+build. Release installers are linked from the [landing page](https://michael-borck.github.io/indagar/).
 
 ## Web UI
 

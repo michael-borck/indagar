@@ -29,7 +29,6 @@ jobs:
         working-directory: desktop
     env:
       GH_TOKEN: ${{ github.token }}
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -44,6 +43,19 @@ jobs:
           CURRENT=$(node -p "require('./package.json').version")
           if [ "$CURRENT" != "$VERSION" ]; then
             npm version "$VERSION" --no-git-tag-version
+          fi
+      - name: Configure macOS signing
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ]; then
+            echo "CSC_LINK=$APPLE_CERTIFICATE" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$APPLE_CERTIFICATE_PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
           fi
       - name: Package
         shell: bash
