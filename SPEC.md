@@ -1,6 +1,6 @@
 # Indagar — design specification
 
-**Status:** Phase 0 skeleton
+**Status:** Phase 1 in progress
 **Name:** Indagar (Spanish: to investigate, inquire, probe)
 **Licence:** MIT
 
@@ -93,6 +93,11 @@ Two adapters cover the practical surface:
 A Google Gemini native adapter is optional and only worth adding for native
 grounding or citations.
 
+Both adapters are implemented in `src/indagar/llm/`. Provider selection is
+explicit (`INDAGAR_LLM_PROVIDER`) or the first configured provider. Model IDs
+are never hard-coded: a role falls back to `INDAGAR_LLM_MODEL`, and the run
+fails clearly if no model is set.
+
 Model roles:
 
 | Role | Job | Default shape |
@@ -100,6 +105,13 @@ Model roles:
 | Planner | Sub-questions, search terms, gap checks | Cheap, structured output |
 | Reader/extractor | Notes and claims from one source | Cheap/local, chunked |
 | Synthesizer | Final report with citations | Best affordable model |
+
+The citation ledger is an ordered, deduplicated list of claims. Every entry has
+a stable ID, the source URL and title, a non-empty quote, an optional locator
+(page, section, or timestamp), the sub-question, and a note. The ledger refuses
+empty quotes, dedupes identical evidence, and renders a Markdown table. Raw LLM
+prompts and responses are not written to run records; only the resulting
+citations, models, and token counts should be.
 
 ## 7. Budgets and rate limits
 
@@ -126,10 +138,16 @@ call as budgeted.
 
 ```
 src/indagar/
-  cli.py            Typer commands: doctor, search, research
+  cli.py            Typer commands: doctor, llm, search, research
   config.py         Environment settings and provider status
-  models.py         Source, SubQuestion, ResearchPlan, SearchOutcome, Run
+  models.py         Source, Citation, SubQuestion, ResearchPlan, SearchOutcome, Run
+  citations.py      Citation ledger, dedupe, Markdown rendering
   store.py          Run JSON + Markdown storage
+  llm/
+    base.py         LLMProvider protocol, response, errors
+    anthropic.py    Anthropic Messages adapter
+    openai_compatible.py  OpenAI Chat Completions adapter
+    factory.py      Provider and role-based model selection
   search/
     base.py         SearchProvider protocol and SearchError
     providers.py    Firecrawl, Brave, Serper, SearXNG
@@ -139,15 +157,16 @@ src/indagar/
     loop.py         Search, collect, dedupe, dossier
 ```
 
-Phase 1 adds `providers/` for LLMs, `research/extract.py`,
-`research/gaps.py`, `research/synthesize.py`, and a citation ledger.
+Phase 1 still adds `research/extract.py`, `research/gaps.py`, and
+`research/synthesize.py`. The provider layer and citation ledger are done.
 
 ## 9. Interfaces
 
-### CLI (Phase 0)
+### CLI (current)
 
 ```bash
 indagar doctor
+indagar llm "prompt" --role writer
 indagar search "question" --limit 8
 indagar research "question" --max-sources 12 --out report.md
 ```
@@ -194,4 +213,14 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 - `indagar search` uses the ordered chain and reports attempts.
 - `indagar research` writes a Markdown dossier and JSON run record.
 - No provider key is required for tests.
+- `ruff check`, `ruff format --check`, and `pytest` pass.
+
+## 13. Phase 1 acceptance
+
+- `indagar llm` works with Anthropic and OpenAI-compatible endpoints.
+- Provider and model selection is role-aware and fails clearly when unset.
+- The citation ledger rejects empty quotes and dedupes identical evidence.
+- Dossiers render a citation section, including an empty state.
+- Raw prompts, responses, and API keys never enter run records.
+- Tests cover request shaping, responses, errors, and citation behaviour.
 - `ruff check`, `ruff format --check`, and `pytest` pass.

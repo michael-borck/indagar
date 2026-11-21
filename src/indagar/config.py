@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 DEFAULT_SEARCH_ORDER = ("firecrawl", "brave", "serper", "searxng")
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 
 
 def _env_int(name: str, default: int) -> int:
@@ -17,6 +18,31 @@ def _env_int(name: str, default: int) -> int:
         return max(1, int(raw))
     except ValueError:
         return default
+
+
+def _env_float(
+    name: str,
+    default: float,
+    *,
+    minimum: float = 0.0,
+    maximum: float = 2.0,
+) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return max(minimum, min(maximum, float(raw)))
+    except ValueError:
+        return default
+
+
+def _normalize_llm_provider(raw: str | None) -> str | None:
+    value = (raw or "").strip().lower().replace("_", "-")
+    if not value:
+        return None
+    if value == "openai":
+        return "openai-compatible"
+    return value
 
 
 def _search_order() -> tuple[str, ...]:
@@ -36,8 +62,17 @@ class Settings:
     searxng_url: str | None = None
     search_order: tuple[str, ...] = DEFAULT_SEARCH_ORDER
     anthropic_api_key: str | None = None
+    anthropic_base_url: str = DEFAULT_ANTHROPIC_BASE_URL
     openai_api_key: str | None = None
     openai_base_url: str = DEFAULT_OPENAI_BASE_URL
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    planner_model: str | None = None
+    reader_model: str | None = None
+    writer_model: str | None = None
+    llm_max_tokens: int = 1024
+    llm_temperature: float = 0.2
+    llm_timeout: float = 60.0
     max_sources: int = 12
     max_seconds: int = 300
     search_limit: int = 8
@@ -53,8 +88,24 @@ class Settings:
             searxng_url=os.getenv("SEARXNG_URL", "").strip() or None,
             search_order=_search_order(),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip() or None,
+            anthropic_base_url=(
+                os.getenv("ANTHROPIC_BASE_URL", "").strip() or DEFAULT_ANTHROPIC_BASE_URL
+            ),
             openai_api_key=os.getenv("OPENAI_API_KEY", "").strip() or None,
             openai_base_url=(os.getenv("OPENAI_BASE_URL", "").strip() or DEFAULT_OPENAI_BASE_URL),
+            llm_provider=_normalize_llm_provider(os.getenv("INDAGAR_LLM_PROVIDER")),
+            llm_model=os.getenv("INDAGAR_LLM_MODEL", "").strip() or None,
+            planner_model=os.getenv("INDAGAR_PLANNER_MODEL", "").strip() or None,
+            reader_model=os.getenv("INDAGAR_READER_MODEL", "").strip() or None,
+            writer_model=os.getenv("INDAGAR_WRITER_MODEL", "").strip() or None,
+            llm_max_tokens=_env_int("INDAGAR_LLM_MAX_TOKENS", 1024),
+            llm_temperature=_env_float("INDAGAR_LLM_TEMPERATURE", 0.2),
+            llm_timeout=_env_float(
+                "INDAGAR_LLM_TIMEOUT",
+                60.0,
+                minimum=1.0,
+                maximum=3600.0,
+            ),
             max_sources=_env_int("INDAGAR_MAX_SOURCES", 12),
             max_seconds=_env_int("INDAGAR_MAX_SECONDS", 300),
             search_limit=_env_int("INDAGAR_SEARCH_LIMIT", 8),
@@ -80,3 +131,17 @@ class Settings:
         if self.openai_api_key or self.openai_base_url != DEFAULT_OPENAI_BASE_URL:
             providers.append("openai-compatible")
         return tuple(providers)
+
+    def selected_llm_provider(self) -> str | None:
+        if self.llm_provider:
+            return self.llm_provider
+        providers = self.llm_providers()
+        return providers[0] if providers else None
+
+    def llm_model_for(self, role: str) -> str | None:
+        models = {
+            "planner": self.planner_model,
+            "reader": self.reader_model,
+            "writer": self.writer_model,
+        }
+        return models.get(role.lower()) or self.llm_model

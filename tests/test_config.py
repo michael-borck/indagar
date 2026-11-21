@@ -18,8 +18,34 @@ def test_llm_provider_detection(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("INDAGAR_LLM_PROVIDER", raising=False)
 
     assert Settings.from_env().llm_providers() == ()
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
     assert Settings.from_env().llm_providers() == ("anthropic",)
+
+
+def test_llm_provider_normalization(monkeypatch):
+    monkeypatch.setenv("INDAGAR_LLM_PROVIDER", "openai")
+
+    assert Settings.from_env().llm_provider == "openai-compatible"
+
+
+def test_llm_timeout_uses_seconds_not_temperature_bounds(monkeypatch):
+    monkeypatch.setenv("INDAGAR_LLM_TIMEOUT", "60")
+
+    assert Settings.from_env().llm_timeout == 60.0
+
+
+def test_llm_models_and_provider_selection():
+    settings = Settings(
+        anthropic_api_key="anthropic-key",
+        llm_model="global-model",
+        planner_model="planner-model",
+    )
+
+    assert settings.selected_llm_provider() == "anthropic"
+    assert settings.llm_model_for("planner") == "planner-model"
+    assert settings.llm_model_for("writer") == "global-model"
+    assert settings.llm_model_for("reader") == "global-model"

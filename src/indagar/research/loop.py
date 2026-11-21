@@ -4,8 +4,9 @@ import re
 from dataclasses import replace
 from datetime import UTC, datetime
 
+from ..citations import render_citations
 from ..config import Settings
-from ..models import ResearchPlan, Run, SearchAttempt, SearchOutcome, Source, utc_now
+from ..models import Citation, ResearchPlan, Run, SearchAttempt, SearchOutcome, Source, utc_now
 from ..search.chain import SearchChain, build_chain, normalize_url
 from .planner import plan_question
 
@@ -24,14 +25,21 @@ def render_dossier(
     plan: ResearchPlan,
     sources: tuple[Source, ...],
     attempts: tuple[SearchAttempt, ...],
+    citations: tuple[Citation, ...] = (),
 ) -> str:
+    notice = (
+        "Sources were discovered, deduplicated, and cited. Claim extraction and "
+        "synthesis are the next phase."
+        if citations
+        else "Phase 0: sources were discovered and deduplicated. LLM planning, claim "
+        "extraction, gap checks and synthesis are the next phase."
+    )
     lines = [
         f"# Research dossier: {plan.question}",
         "",
         f"Generated: {utc_now()}",
         "",
-        "> Phase 0: sources were discovered and deduplicated. LLM planning, claim "
-        "extraction, gap checks and synthesis are the next phase.",
+        f"> {notice}",
         "",
         "## Plan",
         "",
@@ -53,6 +61,7 @@ def render_dossier(
             lines.append(f"   {source.snippet}")
         lines.append("")
 
+    lines.extend(["## Citations", "", render_citations(citations), ""])
     lines.extend(
         [
             "## Search attempts",
@@ -74,9 +83,9 @@ def render_dossier(
             "## Next",
             "",
             "- Add an LLM planner to refine sub-questions and search terms.",
-            "- Read sources and extract claims with source spans.",
+            "- Read sources and extract claims into the citation ledger.",
             "- Add a gap check and one or two follow-up rounds.",
-            "- Synthesize a report with inline citations and a citation ledger.",
+            "- Synthesize a report with inline citations.",
         ]
     )
     return "\n".join(lines).rstrip() + "\n"

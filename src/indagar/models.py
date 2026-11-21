@@ -30,6 +30,31 @@ class Source:
 
 
 @dataclass(frozen=True)
+class Citation:
+    id: str
+    source_url: str
+    title: str
+    quote: str
+    locator: str | None = None
+    sub_question: str | None = None
+    note: str = ""
+    source_type: str = "web"
+
+    def __post_init__(self) -> None:
+        if not self.id.strip():
+            raise ValueError("citation id is required")
+        if not self.source_url.strip():
+            raise ValueError("citation source_url is required")
+        if not self.quote.strip():
+            raise ValueError("citation quote is required")
+        object.__setattr__(self, "title", " ".join(self.title.split()))
+        object.__setattr__(self, "quote", " ".join(self.quote.split()))
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class SubQuestion:
     question: str
     rationale: str = ""
@@ -76,6 +101,7 @@ class Run:
     sources: tuple[Source, ...]
     attempts: tuple[SearchAttempt, ...]
     report: str
+    citations: tuple[Citation, ...] = ()
     created_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, object]:
@@ -86,5 +112,6 @@ class Run:
             "plan": self.plan.to_dict(),
             "sources": [source.to_dict() for source in self.sources],
             "attempts": [attempt.to_dict() for attempt in self.attempts],
+            "citations": [citation.to_dict() for citation in self.citations],
             "report": self.report,
         }

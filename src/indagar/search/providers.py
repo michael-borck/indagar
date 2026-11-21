@@ -4,11 +4,12 @@ from urllib.parse import urlparse
 
 import httpx
 
+from .. import __version__
 from ..config import Settings
 from ..models import Source
 from .base import SearchError
 
-USER_AGENT = "Indagar/0.1 (+https://github.com/michael-borck/indagar)"
+USER_AGENT = f"Indagar/{__version__} (+https://github.com/michael-borck/indagar)"
 
 
 def _is_http_url(value: str) -> bool:

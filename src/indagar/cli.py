@@ -10,7 +10,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from . import __version__
 from .config import Settings
+from .llm.base import LLM_ROLES, LLMError
+from .llm.factory import build_llm
 from .research.loop import run_research
 from .search.chain import build_chain
 from .store import save_run
@@ -27,7 +30,7 @@ def _version() -> str:
     try:
         return package_version("indagar")
     except PackageNotFoundError:
-        return "0.1.0"
+        return __version__
 
 
 def _settings_or_exit() -> Settings:
@@ -50,15 +53,82 @@ def doctor() -> None:
     console.print(f"Search order: {', '.join(settings.search_order)}")
     console.print(f"Configured search: {', '.join(configured) or 'none'}")
     console.print(f"LLM providers: {', '.join(settings.llm_providers()) or 'none'}")
+    selected = settings.selected_llm_provider()
+    if selected:
+        models = ", ".join(
+            f"{role}={settings.llm_model_for(role) or 'unset'}" for role in LLM_ROLES
+        )
+        console.print(f"LLM provider: {selected}")
+        console.print(f"LLM models: {models}")
+        if not any(settings.llm_model_for(role) for role in LLM_ROLES):
+            console.print(
+                "[yellow]Set INDAGAR_LLM_MODEL or a role-specific model to use the LLM.[/yellow]"
+            )
+    else:
+        console.print("LLM provider: none")
+        console.print(
+            "[dim]Set ANTHROPIC_API_KEY or OPENAI_API_KEY/OPENAI_BASE_URL to "
+            "enable LLM commands.[/dim]"
+        )
     console.print(
         f"Budgets: sources={settings.max_sources}, "
-        f"seconds={settings.max_seconds}, search_limit={settings.search_limit}"
+        f"seconds={settings.max_seconds}, search_limit={settings.search_limit}, "
+        f"llm_max_tokens={settings.llm_max_tokens}"
     )
     if not configured:
         console.print(
             "[yellow]No search provider configured. Set FIRECRAWL_URL, "
             "BRAVE_API_KEY, SERPER_API_KEY, or SEARXNG_URL.[/yellow]"
         )
+
+
+@app.command("llm")
+def llm_prompt(
+    prompt: str = typer.Argument(..., help="Prompt to send"),
+    role: str = typer.Option("writer", "--role", help="planner, reader, or writer"),
+    model: str | None = typer.Option(None, "--model", help="Override the configured model"),
+    system: str = typer.Option(
+        "You are Indagar, a careful research assistant. Answer concisely and never invent sources.",
+        "--system",
+        help="System prompt",
+    ),
+    max_tokens: int = typer.Option(0, "--max-tokens", min=0, help="0 uses the configured default"),
+    temperature: float | None = typer.Option(None, "--temperature", min=0.0, max=2.0),
+    json_mode: bool = typer.Option(False, "--json", help="Ask for JSON output"),
+) -> None:
+    """Send one prompt to the configured LLM as a smoke test."""
+    settings = _settings_or_exit()
+    role = role.lower()
+    if role not in LLM_ROLES:
+        console.print(f"[red]Unknown role: {role}. Use {', '.join(LLM_ROLES)}.[/red]")
+        raise typer.Exit(2)
+
+    try:
+        provider = build_llm(settings, role=role, model=model)
+        response = asyncio.run(
+            provider.complete(
+                prompt,
+                system=system,
+                max_tokens=max_tokens or None,
+                temperature=temperature,
+                json_mode=json_mode,
+            )
+        )
+    except LLMError as exc:
+        console.print(f"[red]LLM request failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    console.print(response.text, markup=False)
+    usage: list[str] = []
+    if response.input_tokens is not None:
+        usage.append(f"in={response.input_tokens}")
+    if response.output_tokens is not None:
+        usage.append(f"out={response.output_tokens}")
+    detail = f"[dim]{response.provider} · {response.model}"
+    if usage:
+        detail += f" · {' '.join(usage)}"
+    detail += "[/dim]"
+    console.print(detail)
 
 
 @app.command()
