@@ -28,4 +28,4 @@ jobs:
           node --check desktop/main.js
           node --check desktop/preload.js
           node --check desktop/setup-preload.js
-          node --check desktop/scripts/afterPack.js
+          node --check desktop/scripts/notarize.js
