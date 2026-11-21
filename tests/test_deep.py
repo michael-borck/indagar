@@ -64,6 +64,30 @@ class FakeAcademicChain:
         )
 
 
+class FakeMediaChain:
+    providers = [object()]
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def search(self, query: str, limit: int = 8) -> SearchOutcome:
+        self.calls.append(query)
+        return SearchOutcome(
+            sources=(
+                Source(
+                    title=f"Video {len(self.calls)}",
+                    url=f"https://www.youtube.com/watch?v={len(self.calls)}",
+                    provider="youtube",
+                    source_type="media",
+                    confidence="low",
+                    published="2024-01-01",
+                    authors="A Creator",
+                ),
+            ),
+            attempts=(SearchAttempt("youtube", "ok", 1, 1),),
+        )
+
+
 class FakeReader:
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -273,6 +297,34 @@ def test_deep_research_merges_academic_sources():
     assert all(source.published == "2024" for source in run.sources)
     assert any(attempt.provider == "openalex" for attempt in run.attempts)
     assert "Academic source" in run.report
+
+
+def test_deep_research_merges_media_sources():
+    chain = FakeChain()
+    media = FakeMediaChain()
+    reader = FakeReader()
+    llm = ScriptedLLM()
+
+    run = asyncio.run(
+        run_deep_research(
+            "What is photosynthesis?",
+            Settings(
+                academic_enabled=False,
+                media_enabled=True,
+                max_sources=4,
+                max_seconds=60,
+                max_depth=0,
+            ),
+            llms=_llms(llm),
+            reader=reader,
+            chain=chain,
+            media_chain=media,
+        )
+    )
+
+    assert len(media.calls) == 2
+    assert any(source.source_type == "media" for source in run.sources)
+    assert any(attempt.provider == "youtube" for attempt in run.attempts)
 
 
 def test_deep_research_can_use_academic_only():

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-DEFAULT_SEARCH_ORDER = ("firecrawl", "brave", "serper", "searxng")
+DEFAULT_SEARCH_ORDER = ("firecrawl", "brave", "serper", "searxng", "tavily", "exa")
 DEFAULT_ACADEMIC_ORDER = ("openalex", "crossref", "arxiv", "semantic-scholar")
+DEFAULT_MEDIA_ORDER = ("youtube", "podcast")
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 
@@ -62,6 +64,14 @@ def _academic_order() -> tuple[str, ...]:
     return names or DEFAULT_ACADEMIC_ORDER
 
 
+def _media_order() -> tuple[str, ...]:
+    raw = os.getenv("INDAGAR_MEDIA_ORDER", "")
+    if not raw.strip():
+        return DEFAULT_MEDIA_ORDER
+    names = tuple(part.strip().lower().replace("_", "-") for part in raw.split(",") if part.strip())
+    return names or DEFAULT_MEDIA_ORDER
+
+
 def _normalize_llm_provider(raw: str | None) -> str | None:
     value = (raw or "").strip().lower().replace("_", "-")
     if not value:
@@ -86,11 +96,15 @@ class Settings:
     brave_api_key: str | None = None
     serper_api_key: str | None = None
     searxng_url: str | None = None
+    tavily_api_key: str | None = None
+    exa_api_key: str | None = None
     search_order: tuple[str, ...] = DEFAULT_SEARCH_ORDER
     academic_enabled: bool = True
     academic_order: tuple[str, ...] = DEFAULT_ACADEMIC_ORDER
     openalex_mailto: str | None = None
     semantic_scholar_api_key: str | None = None
+    media_enabled: bool = False
+    media_order: tuple[str, ...] = DEFAULT_MEDIA_ORDER
     anthropic_api_key: str | None = None
     anthropic_base_url: str = DEFAULT_ANTHROPIC_BASE_URL
     openai_api_key: str | None = None
@@ -128,6 +142,8 @@ class Settings:
             brave_api_key=os.getenv("BRAVE_API_KEY", "").strip() or None,
             serper_api_key=os.getenv("SERPER_API_KEY", "").strip() or None,
             searxng_url=os.getenv("SEARXNG_URL", "").strip() or None,
+            tavily_api_key=os.getenv("TAVILY_API_KEY", "").strip() or None,
+            exa_api_key=os.getenv("EXA_API_KEY", "").strip() or None,
             search_order=_search_order(),
             academic_enabled=_env_bool("INDAGAR_ACADEMIC", True),
             academic_order=_academic_order(),
@@ -195,6 +211,10 @@ class Settings:
                 configured.append(name)
             elif name == "searxng" and self.searxng_url:
                 configured.append(name)
+            elif name == "tavily" and self.tavily_api_key:
+                configured.append(name)
+            elif name == "exa" and self.exa_api_key:
+                configured.append(name)
         return tuple(configured)
 
     def configured_academic_providers(self) -> tuple[str, ...]:
@@ -205,6 +225,18 @@ class Settings:
             if name in {"openalex", "crossref", "arxiv"}:
                 configured.append(name)
             elif name == "semantic-scholar" and self.semantic_scholar_api_key:
+                configured.append(name)
+        return tuple(configured)
+
+    def configured_media_providers(self) -> tuple[str, ...]:
+        if not self.media_enabled:
+            return ()
+        configured: list[str] = []
+        for name in self.media_order:
+            if name == "youtube":
+                if importlib.util.find_spec("yt_dlp") is not None:
+                    configured.append(name)
+            elif name == "podcast":
                 configured.append(name)
         return tuple(configured)
 

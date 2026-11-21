@@ -37,6 +37,7 @@ class ResearchRequest:
     depth: int | None = None
     max_sources: int | None = None
     academic: bool | None = None
+    media: bool | None = None
     resume: DeepCheckpoint | None = None
     checkpoint: CheckpointCallback | None = None
 
@@ -59,6 +60,7 @@ async def default_runner(
             progress=progress,
             resume=request.resume,
             use_academic=request.academic,
+            use_media=request.media,
             checkpoint=request.checkpoint,
         )
     return await run_research(request.question, settings, progress=progress)
@@ -131,6 +133,7 @@ class Job:
             "depth": self.request.depth,
             "max_sources": self.request.max_sources,
             "academic": self.request.academic,
+            "media": self.request.media,
             "created_at": self.created_at,
             "finished_at": self.finished_at,
             "run_id": self.run_id,
@@ -171,7 +174,8 @@ class JobManager:
             raise ValueError("question is required")
         has_search = bool(self.settings.configured_search_providers())
         has_academic = bool(self.settings.configured_academic_providers())
-        if not has_search and not (request.llm and has_academic):
+        has_media = bool(self.settings.configured_media_providers())
+        if not has_search and not (request.llm and (has_academic or has_media)):
             raise RuntimeError(
                 "No search provider configured. Set FIRECRAWL_URL, BRAVE_API_KEY, "
                 "SERPER_API_KEY, SEARXNG_URL, or enable academic search."
@@ -226,6 +230,7 @@ class JobManager:
                 depth=state.depth,
                 max_sources=state.max_sources,
                 academic=state.academic,
+                media=state.media,
                 resume=state,
             )
         )

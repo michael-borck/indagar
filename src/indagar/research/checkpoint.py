@@ -36,6 +36,7 @@ class DeepCheckpoint:
     depth: int = 1
     max_sources: int = 12
     academic: bool = True
+    media: bool = False
     updated_at: str = field(default_factory=utc_now)
 
     def to_dict(self) -> dict[str, object]:
@@ -53,6 +54,7 @@ class DeepCheckpoint:
             "depth": self.depth,
             "max_sources": self.max_sources,
             "academic": self.academic,
+            "media": self.media,
             "updated_at": self.updated_at,
         }
 
@@ -180,6 +182,8 @@ class DeepCheckpoint:
             phase=phase if phase in PHASES else "planned",
             depth=(int(data["depth"]) if data.get("depth") is not None else 1),
             max_sources=(int(data["max_sources"]) if data.get("max_sources") is not None else 12),
+            academic=(bool(data["academic"]) if data.get("academic") is not None else True),
+            media=(bool(data["media"]) if data.get("media") is not None else False),
             updated_at=str(data.get("updated_at") or utc_now()),
         )
 

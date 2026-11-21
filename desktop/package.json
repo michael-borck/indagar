@@ -1,0 +1,16 @@
+{
+  "name": "indagar-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop shell for Indagar",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0"
+  }
+}

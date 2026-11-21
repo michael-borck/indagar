@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -258,6 +259,7 @@ def build_reader(settings: Settings) -> Reader:
         max_chars=settings.max_content_chars,
         timeout=settings.reader_timeout,
     )
+    primary: Reader = simple
     if settings.firecrawl_url:
         firecrawl = FirecrawlReader(
             settings.firecrawl_url,
@@ -265,8 +267,13 @@ def build_reader(settings: Settings) -> Reader:
             max_chars=settings.max_content_chars,
             timeout=settings.reader_timeout,
         )
-        return FallbackReader(firecrawl, simple)
-    return simple
+        primary = FallbackReader(firecrawl, simple)
+    if importlib.util.find_spec("yt_dlp") is not None:
+        from .media_reader import YouTubeTranscriptReader
+
+        youtube = YouTubeTranscriptReader(max_chars=settings.max_content_chars)
+        return FallbackReader(youtube, primary)
+    return primary
 
 
 __all__ = [

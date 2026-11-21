@@ -116,6 +116,21 @@ def test_index_status_and_static_assets(tmp_path):
     assert "EventSource" in script.text
 
 
+def test_status_reports_media_providers(tmp_path):
+    settings = Settings(
+        firecrawl_url="http://localhost:3002",
+        media_enabled=True,
+        media_order=("podcast",),
+    )
+    manager = JobManager(settings, runs_dir=tmp_path / "runs", runner=fake_runner)
+    client = TestClient(create_app(settings, manager))
+
+    status = client.get("/api/status").json()
+
+    assert status["media_enabled"] is True
+    assert status["media_providers"] == ["podcast"]
+
+
 def test_estimate_endpoint(tmp_path):
     client, _ = _client(tmp_path)
 

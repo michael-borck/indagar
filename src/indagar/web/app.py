@@ -25,6 +25,7 @@ class RunBody(BaseModel):
     depth: int | None = Field(default=None, ge=0, le=2)
     max_sources: int | None = Field(default=None, ge=1, le=50)
     academic: bool | None = None
+    media: bool | None = None
 
 
 def _status(settings: Settings) -> dict[str, object]:
@@ -34,6 +35,8 @@ def _status(settings: Settings) -> dict[str, object]:
         "search_providers": list(settings.configured_search_providers()),
         "academic_enabled": settings.academic_enabled,
         "academic_providers": list(settings.configured_academic_providers()),
+        "media_enabled": settings.media_enabled,
+        "media_providers": list(settings.configured_media_providers()),
         "llm_providers": list(settings.llm_providers()),
         "llm_provider": settings.selected_llm_provider(),
         "llm_models": {role: settings.llm_model_for(role) for role in LLM_ROLES},
@@ -133,6 +136,7 @@ def create_app(
             depth=body.depth,
             max_sources=body.max_sources,
             academic=body.academic,
+            media=body.media,
         )
         try:
             job = manager.start(request)

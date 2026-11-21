@@ -3,6 +3,20 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.6.0] - 2026-11-21
+
+### Added
+
+- Optional Tavily and Exa provider-native search adapters.
+- YouTube search and transcript reading via yt-dlp, with a `media` extra.
+- Podcast episode search through the iTunes Search API.
+- `indagar media` command and `research --media`.
+- Media toggle in the web UI and media metadata in runs.
+- Electron desktop shell under `desktop/`, with server startup, health checks,
+  external-link handling, and clean shutdown.
+- Tests for native providers, media search, transcript parsing, and media
+  integration.
+
 ## [0.5.0] - 2026-11-21
 
 ### Added

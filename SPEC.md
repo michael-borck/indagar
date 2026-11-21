@@ -1,6 +1,6 @@
 # Indagar — design specification
 
-**Status:** Phase 3 in progress: academic APIs
+**Status:** Phase 3 complete (source desktop shell)
 **Name:** Indagar (Spanish: to investigate, inquire, probe)
 **Licence:** MIT
 
@@ -87,6 +87,16 @@ Academic tier (keyless unless noted):
 Academic results are merged with web results, not used as fallback. They are
 labelled `academic` / `high confidence`, carry year and authors, and can be
 disabled with `INDAGAR_ACADEMIC=false` or `--no-academic`.
+
+Provider-native search is optional: Tavily and Exa join the ordered web chain
+when their keys are set. They are not required and do not replace the portable
+loop.
+
+Media tier (opt-in, `INDAGAR_MEDIA`):
+
+- YouTube search and transcript reading via yt-dlp (`media` extra)
+- Podcast episode search through the iTunes Search API
+- Media sources are low confidence; transcripts may be unavailable
 
 Rules:
 
@@ -185,14 +195,19 @@ src/indagar/
     base.py         SearchProvider protocol and SearchError
     providers.py    Firecrawl, Brave, Serper, SearXNG
     academic.py     OpenAlex, Crossref, arXiv, Semantic Scholar
+    media.py        YouTube and podcast search
     chain.py        Ordered fallback, dedupe, cache
   web/
     app.py          FastAPI routes, SSE, static UI
-    jobs.py         Background jobs, events, history, cancel
+    jobs.py         Background jobs, events, history, cancel, resume
     static/         index.html, app.js, styles.css
+desktop/
+  main.js           Electron shell: find port, start server, open window
+  preload.js        Minimal context bridge
   research/
     planner.py      Deterministic and LLM planners
     reader.py       Firecrawl, simple HTTP, and fallback readers
+    media_reader.py YouTube transcript reader
     extract.py      Verbatim claim extraction with source checks
     gaps.py         Bounded follow-up question check
     synthesize.py   Citation-checked narrative
@@ -202,8 +217,8 @@ src/indagar/
     json_utils.py   Tolerant JSON object parsing
 ```
 
-Phase 1 and Phase 2 are implemented. Phase 3 has started with academic APIs;
-the desktop shell, podcast/video sources, and provider-native search remain.
+Phases 1-3 are implemented in source form. Bundled/signed desktop installers
+and systematic-review-grade verification remain future work.
 
 ## 9. Interfaces
 
@@ -213,14 +228,17 @@ the desktop shell, podcast/video sources, and provider-native search remain.
 indagar doctor
 indagar llm "prompt" --role writer
 indagar academic "question" --limit 8
+indagar media "question" --limit 8
 indagar estimate "question" --max-sources 12 --depth 1
 indagar search "question" --limit 8
 indagar research "question" --max-sources 12 --out report.md
 indagar research "question" --llm --depth 1 --max-sources 12
 indagar research "question" --llm --dry-run
 indagar research "question" --llm --no-academic
+indagar research "question" --llm --media
 indagar research --resume <run-id> --llm
 indagar serve --host 127.0.0.1 --port 8765
+# desktop: cd desktop && npm install && npm start
 ```
 
 ### Web UI (Phase 2, complete)
@@ -233,11 +251,14 @@ indagar serve --host 127.0.0.1 --port 8765
 - Job history, stop, and resume from checkpoints.
 - Bounded concurrent reads.
 - Academic source toggle and metadata.
+- Media source toggle and metadata.
 
-### Desktop (Phase 3)
+### Desktop (Phase 3, source shell)
 
-Electron or Tauri shell around the local FastAPI server, with the same web UI.
-Reuse the Winnow/HoneyGuide/Curriculum Curator shell pattern.
+Electron shell under `desktop/`: finds a free port, starts `indagar serve`,
+waits for `/api/health`, opens the web UI in a native window, routes external
+links to the system browser, and stops the server on exit. Packaging and
+signing are separate.
 
 ## 10. Reuse
 
@@ -259,7 +280,7 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 | 0 | Skeleton: CLI, search chain, deterministic plan, source dossier, tests, CI |
 | 1 | LLM planner, reader/extractor, gap loop, synthesis, citation ledger, usage panel |
 | 2 | Web UI, job history, live progress, source inspector, Markdown/JSON/DOCX/PDF exports, resume |
-| 3 | Academic APIs (in progress), desktop shell, podcasts/videos, provider-native search as an option |
+| 3 | Academic APIs, media sources, provider-native search, Electron desktop shell |
 
 ## 12. Phase 0 acceptance
 
@@ -302,13 +323,18 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
   exports, and missing runs.
 - `ruff check`, `ruff format --check`, `pytest`, and `node --check` pass.
 
-## 15. Phase 3 acceptance (academic slice)
+## 15. Phase 3 acceptance
 
 - `indagar academic` queries OpenAlex, Crossref, and arXiv, plus Semantic
   Scholar when keyed.
 - Academic results carry type, confidence, year, and author metadata.
-- Deep research merges academic and web results; `--no-academic` disables the
-  academic tier.
-- Academic-only deep research works without a web search provider.
-- Provider tests cover response shaping and invalid output handling.
+- Deep research merges academic, web, and optional media results.
+- `--no-academic` disables the academic tier; `--media` enables media.
+- Media search covers YouTube and podcast episodes; YouTube transcripts are
+  read from captions when available and never invented.
+- Tavily and Exa can join the ordered web chain as native search options.
+- The Electron shell starts the local server, opens the UI, and stops the
+  server on exit.
+- Tests cover academic and native providers, media search, transcript parsing,
+  media integration, and desktop JavaScript syntax.
 - `ruff check`, `ruff format --check`, `pytest`, and `node --check` pass.

@@ -23,4 +23,7 @@ jobs:
       - name: Test
         run: pytest
       - name: JavaScript syntax
-        run: node --check src/indagar/web/static/app.js
+        run: |
+          node --check src/indagar/web/static/app.js
+          node --check desktop/main.js
+          node --check desktop/preload.js

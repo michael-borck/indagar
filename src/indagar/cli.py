@@ -20,6 +20,7 @@ from .research.deep import run_deep_research
 from .research.loop import run_research
 from .search.academic import build_academic_chain
 from .search.chain import build_chain
+from .search.media import build_media_chain
 from .store import save_run
 
 app = typer.Typer(
@@ -57,7 +58,9 @@ def doctor() -> None:
     console.print(f"Search order: {', '.join(settings.search_order)}")
     console.print(f"Configured search: {', '.join(configured) or 'none'}")
     academic = settings.configured_academic_providers()
+    media = settings.configured_media_providers()
     console.print(f"Academic search: {', '.join(academic) or 'off'}")
+    console.print(f"Media search: {', '.join(media) or 'off'}")
     console.print(f"LLM providers: {', '.join(settings.llm_providers()) or 'none'}")
     selected = settings.selected_llm_provider()
     if selected:
@@ -241,6 +244,49 @@ def academic_search(
         console.print("[yellow]No academic results.[/yellow]")
 
 
+@app.command("media")
+def media_search(
+    query: str = typer.Argument(..., help="Video or podcast search query"),
+    limit: int = typer.Option(8, "--limit", "-n", min=1, max=20),
+) -> None:
+    """Search YouTube and podcast episodes."""
+    settings = replace(_settings_or_exit(), media_enabled=True)
+    chain = build_media_chain(settings)
+    if not chain.providers:
+        console.print(
+            "[red]No media provider available. Install the media extra for YouTube.[/red]"
+        )
+        raise typer.Exit(1)
+
+    try:
+        outcome = asyncio.run(chain.search(query, limit=limit))
+    except Exception as exc:  # noqa: BLE001 - CLI boundary
+        console.print(f"[red]Media search failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    table = Table(title=f"Media search: {query}", show_lines=False)
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Title", overflow="fold")
+    table.add_column("Published", style="cyan")
+    table.add_column("Provider", style="green")
+    for index, source in enumerate(outcome.sources, start=1):
+        table.add_row(
+            str(index),
+            source.title,
+            source.published or "—",
+            source.provider,
+        )
+    console.print(table)
+    for attempt in outcome.attempts:
+        detail = f" — {attempt.error}" if attempt.error else ""
+        console.print(
+            f"[dim]{attempt.provider}: {attempt.status} "
+            f"({attempt.count}, {attempt.latency_ms}ms){detail}[/dim]"
+        )
+    if not outcome.sources:
+        console.print("[yellow]No media results.[/yellow]")
+
+
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Search query"),
@@ -303,6 +349,11 @@ def research(
         "--no-academic",
         help="Skip OpenAlex, Crossref, arXiv, and Semantic Scholar",
     ),
+    media: bool = typer.Option(
+        False,
+        "--media",
+        help="Include video and podcast sources",
+    ),
     max_sources: int = typer.Option(0, "--max-sources", min=0, help="0 uses INDAGAR_MAX_SOURCES"),
     out: Path | None = typer.Option(None, "--out", "-o", help="Markdown output path"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the estimate and exit"),
@@ -351,6 +402,7 @@ def research(
                     resume=state,
                     checkpoint=lambda saved: save_checkpoint(runs_dir, saved),
                     use_academic=False if no_academic else None,
+                    use_media=True if media else None,
                 )
             )
         else:

@@ -86,15 +86,25 @@ function renderStatus(status) {
   if (!status.academic_enabled) {
     $("use-academic").checked = false;
   }
+  if (status.media_enabled) {
+    $("use-media").checked = true;
+  }
 
   const config = $("config");
   config.innerHTML = "";
   config.append(configRow("Search", badges(search, search.length > 0)));
   const academic = status.academic_providers || [];
+  const media = status.media_providers || [];
   config.append(
     configRow(
       "Academic",
       academic.length ? badges(academic, true) : '<span class="badge">off</span>',
+    ),
+  );
+  config.append(
+    configRow(
+      "Media",
+      media.length ? badges(media, true) : '<span class="badge">off</span>',
     ),
   );
 
@@ -319,6 +329,7 @@ async function startResearch() {
     question,
     llm: $("use-llm").checked,
     academic: $("use-academic").checked,
+    media: $("use-media").checked,
     depth: Number($("depth").value),
     max_sources: Number($("max-sources").value),
   };

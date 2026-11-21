@@ -6,11 +6,11 @@ Indagar asks a question, plans sub-questions, searches multiple sources, reads
 what it finds, and produces a cited research report or a source dossier. The name is Spanish for
 *to investigate, inquire, or probe*.
 
-Phase 2 is complete, and Phase 3 has started with academic search. `research`
-is retrieval-only by default; adding `--llm` turns on LLM planning, source
-reading, grounded quote extraction, academic and web sources, a bounded gap
-check, concurrency, checkpoints, and citation-checked synthesis. `indagar
-serve` opens the local web workspace with resume and DOCX/PDF export.
+Phase 3 is complete. `research` is retrieval-only by default; adding `--llm`
+turns on LLM planning, source reading, grounded quote extraction, academic,
+web, and optional media sources, a bounded gap check, concurrency, checkpoints,
+and citation-checked synthesis. `indagar serve` opens the local web workspace,
+and an Electron shell wraps it as a desktop app.
 
 ## Install
 
@@ -30,6 +30,7 @@ uv pip install -e '.[dev]'
 
 indagar doctor
 indagar academic "retrieval augmented generation" --limit 5
+indagar media "retrieval augmented generation" --limit 5
 indagar search "retrieval augmented generation" --limit 5
 indagar research "Does retrieval augmented generation reduce hallucination?" \
   --max-sources 10
@@ -106,6 +107,39 @@ the results. Use `--no-academic` to skip them. Sources keep their type,
 confidence, publication year, and authors. Set `OPENALEX_MAILTO` for OpenAlex's
 polite pool.
 
+## Video and podcasts
+
+Install the media extra for YouTube search and transcript extraction:
+
+```bash
+uv pip install 'indagar[media]'
+indagar media "photosynthesis" --limit 5
+```
+
+Media search is opt-in for research: `indagar research "..." --llm --media`. It
+uses YouTube search and transcripts via yt-dlp, plus podcast episodes from the
+iTunes Search API. Media sources are labelled low confidence. Podcast pages
+fall back to the normal page reader when no transcript is available.
+
+## Provider-native search
+
+Tavily and Exa are optional provider-native search adapters. Set
+`TAVILY_API_KEY` or `EXA_API_KEY`, then put them in `INDAGAR_SEARCH_ORDER`.
+They join the existing ordered fallback chain.
+
+## Desktop shell
+
+```bash
+uv pip install 'indagar[web,media]'
+cd desktop
+npm install
+npm start
+```
+
+The Electron shell starts `indagar serve`, waits for health, and opens the UI
+in a native window. Set `INDAGAR_BIN=/path/to/indagar` if it is not on `PATH`.
+The shell is source-only; packaging and signing are separate.
+
 ## Web UI
 
 ```bash
@@ -134,11 +168,15 @@ Copy `.env.example` to `.env` and set the providers you have.
 | `BRAVE_API_KEY` | Brave Search API key |
 | `SERPER_API_KEY` | Serper API key |
 | `SEARXNG_URL` | Self-hosted SearXNG base URL |
-| `INDAGAR_SEARCH_ORDER` | Provider order. Default `firecrawl,brave,serper,searxng` |
+| `INDAGAR_SEARCH_ORDER` | Provider order. Default `firecrawl,brave,serper,searxng,tavily,exa` |
+| `TAVILY_API_KEY` | Optional Tavily native search key |
+| `EXA_API_KEY` | Optional Exa native search key |
 | `INDAGAR_ACADEMIC` | Enable academic search. Default `true` |
 | `INDAGAR_ACADEMIC_ORDER` | Academic order. Default `openalex,crossref,arxiv,semantic-scholar` |
 | `OPENALEX_MAILTO` | Optional email for the OpenAlex polite pool |
 | `SEMANTIC_SCHOLAR_API_KEY` | Optional Semantic Scholar key |
+| `INDAGAR_MEDIA` | Enable video/podcast search. Default `false` |
+| `INDAGAR_MEDIA_ORDER` | Media order. Default `youtube,podcast` |
 | `ANTHROPIC_API_KEY` | Anthropic key |
 | `ANTHROPIC_BASE_URL` | Anthropic API base. Default `https://api.anthropic.com` |
 | `OPENAI_API_KEY` | OpenAI-compatible key |
@@ -192,11 +230,14 @@ across the planner, reader, and writer roles.
 - [x] Source type and confidence labels; bounded concurrent reading
 - [x] Academic APIs: OpenAlex, Crossref, arXiv, and optional Semantic Scholar
 - [x] Academic sources merged into deep research with year and author metadata
-- [ ] Desktop shell, podcasts/videos, provider-native search
+- [x] Provider-native search options: Tavily and Exa
+- [x] Video/podcast search and YouTube transcript extraction
+- [x] Electron desktop shell around the local server
+- [ ] Bundled/signed desktop installers
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.5.0`, which starts Phase 3 with academic search. The desktop shell,
-podcast/video sources, and provider-native search are next.
+PyPI has `0.5.0`; Phase 3 completion is version `0.6.0` on `main` and is next
+to publish.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 

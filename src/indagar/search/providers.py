@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from urllib.parse import urlparse
 
 import httpx
@@ -162,6 +164,111 @@ class SerperProvider:
         return results
 
 
+class TavilyProvider:
+    name = "tavily"
+
+    def __init__(self, api_key: str, client: httpx.AsyncClient | None = None):
+        self.api_key = api_key
+        self._client = client
+
+    @asynccontextmanager
+    async def _client_ctx(self) -> AsyncIterator[httpx.AsyncClient]:
+        if self._client is not None:
+            yield self._client
+        else:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                yield client
+
+    async def search(self, query: str, limit: int) -> list[Source]:
+        headers = {
+            "content-type": "application/json",
+            "user-agent": USER_AGENT,
+            "authorization": f"Bearer {self.api_key}",
+        }
+        payload = {
+            "api_key": self.api_key,
+            "query": query,
+            "max_results": min(max(limit, 1), 20),
+            "search_depth": "basic",
+            "include_answer": False,
+            "include_raw_content": False,
+        }
+        try:
+            async with self._client_ctx() as client:
+                response = await client.post(
+                    "https://api.tavily.com/search",
+                    json=payload,
+                    headers=headers,
+                )
+        except httpx.HTTPError as exc:
+            raise SearchError(self.name, f"tavily request failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise _status_error(self.name, response)
+        data = response.json()
+        results: list[Source] = []
+        for item in data.get("results") or []:
+            source = _source(
+                item.get("title"),
+                item.get("url"),
+                item.get("content"),
+                self.name,
+            )
+            if source:
+                results.append(source)
+        return results
+
+
+class ExaProvider:
+    name = "exa"
+
+    def __init__(self, api_key: str, client: httpx.AsyncClient | None = None):
+        self.api_key = api_key
+        self._client = client
+
+    @asynccontextmanager
+    async def _client_ctx(self) -> AsyncIterator[httpx.AsyncClient]:
+        if self._client is not None:
+            yield self._client
+        else:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                yield client
+
+    async def search(self, query: str, limit: int) -> list[Source]:
+        headers = {
+            "content-type": "application/json",
+            "user-agent": USER_AGENT,
+            "x-api-key": self.api_key,
+        }
+        payload = {
+            "query": query,
+            "numResults": min(max(limit, 1), 20),
+            "contents": {"text": {"maxCharacters": 600}},
+        }
+        try:
+            async with self._client_ctx() as client:
+                response = await client.post(
+                    "https://api.exa.ai/search",
+                    json=payload,
+                    headers=headers,
+                )
+        except httpx.HTTPError as exc:
+            raise SearchError(self.name, f"exa request failed: {exc}") from exc
+        if response.status_code >= 400:
+            raise _status_error(self.name, response)
+        data = response.json()
+        results: list[Source] = []
+        for item in data.get("results") or []:
+            source = _source(
+                item.get("title"),
+                item.get("url"),
+                item.get("text") or item.get("author"),
+                self.name,
+            )
+            if source:
+                results.append(source)
+        return results
+
+
 class SearxngProvider:
     name = "searxng"
 
@@ -205,13 +312,19 @@ def create_provider(name: str, settings: Settings):
         return SerperProvider(settings.serper_api_key)
     if name == "searxng" and settings.searxng_url:
         return SearxngProvider(settings.searxng_url)
+    if name == "tavily" and settings.tavily_api_key:
+        return TavilyProvider(settings.tavily_api_key)
+    if name == "exa" and settings.exa_api_key:
+        return ExaProvider(settings.exa_api_key)
     return None
 
 
 __all__ = [
     "BraveProvider",
+    "ExaProvider",
     "FirecrawlProvider",
     "SearxngProvider",
     "SerperProvider",
+    "TavilyProvider",
     "create_provider",
 ]

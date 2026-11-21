@@ -56,6 +56,7 @@ def _state() -> DeepCheckpoint:
         phase="gaps",
         depth=0,
         max_sources=3,
+        media=True,
     )
 
 
@@ -74,6 +75,7 @@ def test_checkpoint_round_trip():
     assert restored.usage[0].calls == 2
     assert restored.phase == "gaps"
     assert restored.depth == 0
+    assert restored.media is True
 
 
 def test_save_load_list_and_delete_checkpoint(tmp_path: Path):

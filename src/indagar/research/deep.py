@@ -22,6 +22,7 @@ from ..models import (
 from ..progress import ProgressCallback, emit_progress
 from ..search.academic import build_academic_chain
 from ..search.chain import SearchChain, build_chain, normalize_url
+from ..search.media import build_media_chain
 from ..usage import TrackedLLM, UsageTracker
 from .checkpoint import CheckpointCallback, DeepCheckpoint
 from .extract import ClaimCandidate, extract_claims
@@ -40,13 +41,12 @@ def _error_text(exc: Exception) -> str:
     return " ".join(str(exc).split())[:300]
 
 
-def _interleave(primary: list[Source], secondary: list[Source]) -> list[Source]:
+def _interleave_many(*groups: list[Source]) -> list[Source]:
     merged: list[Source] = []
-    for index in range(max(len(primary), len(secondary))):
-        if index < len(primary):
-            merged.append(primary[index])
-        if index < len(secondary):
-            merged.append(secondary[index])
+    for index in range(max((len(group) for group in groups), default=0)):
+        for group in groups:
+            if index < len(group):
+                merged.append(group[index])
     return merged
 
 
@@ -202,6 +202,8 @@ async def run_deep_research(
     checkpoint: CheckpointCallback | None = None,
     academic_chain: SearchChain | None = None,
     use_academic: bool | None = None,
+    media_chain: SearchChain | None = None,
+    use_media: bool | None = None,
 ) -> Run:
     """Plan, search, read, extract, gap-check, and synthesize one run."""
     normalized = resume.question if resume is not None else " ".join(question.split())
@@ -219,10 +221,19 @@ async def run_deep_research(
     if academic_chain is not None and not academic_chain.providers:
         academic_chain = None
 
-    if not chain.providers and (academic_chain is None or not academic_chain.providers):
+    if use_media is None:
+        want_media = resume.media if resume is not None else settings.media_enabled
+    else:
+        want_media = use_media
+    if media_chain is None and want_media:
+        media_chain = build_media_chain(settings)
+    if media_chain is not None and not media_chain.providers:
+        media_chain = None
+
+    if not chain.providers and academic_chain is None and media_chain is None:
         raise RuntimeError(
             "No search provider configured. Set FIRECRAWL_URL, BRAVE_API_KEY, "
-            "SERPER_API_KEY, SEARXNG_URL, or enable academic search."
+            "SERPER_API_KEY, SEARXNG_URL, or enable academic/media search."
         )
     reader = reader or build_reader(settings)
 
@@ -275,6 +286,7 @@ async def run_deep_research(
             depth=rounds,
             max_sources=limit,
             academic=want_academic,
+            media=want_media,
         )
         try:
             checkpoint(state)
@@ -338,42 +350,48 @@ async def run_deep_research(
             f"Searching: {sub_question.question}",
             question=sub_question.question,
         )
+        search_chains: list[tuple[str, SearchChain]] = []
         if academic_chain is not None:
-            web_outcome, academic_outcome = await asyncio.gather(
-                chain.search(
-                    sub_question.question,
-                    limit=settings.search_limit,
-                ),
-                academic_chain.search(
-                    sub_question.question,
-                    limit=settings.search_limit,
-                ),
-            )
-        else:
-            web_outcome = await chain.search(
-                sub_question.question,
-                limit=settings.search_limit,
-            )
-            academic_outcome = None
+            search_chains.append(("academic", academic_chain))
+        search_chains.append(("web", chain))
+        if media_chain is not None:
+            search_chains.append(("media", media_chain))
 
-        attempts.extend(web_outcome.attempts)
-        if academic_outcome is not None:
-            attempts.extend(academic_outcome.attempts)
-        academic_sources = list(academic_outcome.sources) if academic_outcome is not None else []
-        merged = _interleave(academic_sources, list(web_outcome.sources))
-        if academic_outcome is not None:
-            message = f"{len(academic_sources)} academic · {len(web_outcome.sources)} web"
-        else:
-            result_word = "result" if len(web_outcome.sources) == 1 else "results"
-            message = f"{len(web_outcome.sources)} {result_word}"
+        outcomes = await asyncio.gather(
+            *(
+                search_chain.search(
+                    sub_question.question,
+                    limit=settings.search_limit,
+                )
+                for _, search_chain in search_chains
+            )
+        )
+        groups: list[list[Source]] = []
+        counts: dict[str, int] = {}
+        for (label, _), outcome in zip(search_chains, outcomes, strict=True):
+            attempts.extend(outcome.attempts)
+            group = list(outcome.sources)
+            groups.append(group)
+            counts[label] = len(group)
+        merged = _interleave_many(*groups)
+        parts = [
+            f"{counts[label]} {label}"
+            for label, _ in search_chains
+            if counts.get(label, 0) or label == "web"
+        ]
+        message = " · ".join(parts)
+        if len(search_chains) == 1:
+            result_word = "result" if counts.get("web") == 1 else "results"
+            message = f"{counts.get('web', 0)} {result_word}"
         emit_progress(
             progress,
             "search_done",
             message,
             question=sub_question.question,
             count=len(merged),
-            academic=len(academic_sources),
-            web=len(web_outcome.sources),
+            academic=counts.get("academic", 0),
+            web=counts.get("web", 0),
+            media=counts.get("media", 0),
         )
         bucket = buckets.setdefault(sub_question.question, [])
         for source in merged:
