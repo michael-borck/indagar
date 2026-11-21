@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="description" content="Indagar is local-first deep research: plan, search academic and web sources, read, and write a cited report.">
+  <title>Indagar — deep research with citations</title>
+  <link rel="icon" href="assets/indagar-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="/indagar/">
+      <img src="assets/indagar-icon.png" alt="" width="32" height="32">
+      <span>Indagar</span>
+    </a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="https://github.com/michael-borck/indagar">GitHub</a>
+      <a href="https://pypi.org/project/indagar/">PyPI</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Local-first deep research</p>
+        <h1>Ask a question.<br>Get a cited report.</h1>
+        <p class="lede">
+          Indagar plans sub-questions, searches academic and web sources, reads
+          what it finds, and writes a report with inspectable citations. Run it
+          from the command line, the browser, or the desktop app.
+        </p>
+
+        <div id="downloads" class="download-panel">
+          <a id="primary-download" class="button primary" href="#" download>
+            Download Indagar
+          </a>
+          <p id="primary-note" class="download-note">Choose your platform below.</p>
+          <div class="platform-links">
+            <a class="platform" data-platform="mac" href="#" download>
+              <span>macOS</span><small>Universal</small>
+            </a>
+            <a class="platform" data-platform="win" href="#" download>
+              <span>Windows</span><small>64-bit</small>
+            </a>
+            <a class="platform" data-platform="linux" href="#" download>
+              <span>Linux</span><small>AppImage</small>
+            </a>
+          </div>
+          <p class="meta-line">
+            <span id="release-version">Latest release</span>
+            <span aria-hidden="true">·</span>
+            Free and open source
+            <span aria-hidden="true">·</span>
+            MIT
+          </p>
+        </div>
+      </div>
+
+      <figure class="hero-shot">
+        <img src="assets/indagar-window.png" alt="Indagar showing a research report, live progress, sources, and citations" width="1440" height="1180">
+        <figcaption>Every source, quote, and token count stays visible.</figcaption>
+      </figure>
+    </section>
+
+    <section id="features" class="section">
+      <div class="section-head">
+        <p class="eyebrow">What it does</p>
+        <h2>Research you can inspect.</h2>
+      </div>
+      <div class="features">
+        <article>
+          <h3>Plans the work</h3>
+          <p>Turns one question into searchable sub-questions, then adds focused follow-ups when coverage is thin.</p>
+        </article>
+        <article>
+          <h3>Reads widely</h3>
+          <p>Merges OpenAlex, Crossref, arXiv, web search, and optional video or podcast sources.</p>
+        </article>
+        <article>
+          <h3>Quotes, not paraphrase</h3>
+          <p>Extracted quotes are checked against the source text. Unsupported quotes are dropped.</p>
+        </article>
+        <article>
+          <h3>Citations with IDs</h3>
+          <p>The writer can only cite IDs in the ledger. Unknown IDs trigger the grounded evidence fallback.</p>
+        </article>
+        <article>
+          <h3>Local and portable</h3>
+          <p>Bring Anthropic, OpenAI, Ollama, or another compatible endpoint. Runs and keys stay on your machine.</p>
+        </article>
+        <article>
+          <h3>Exports and updates</h3>
+          <p>Markdown, JSON, DOCX, and PDF. Packaged desktop builds check GitHub for updates.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="how" class="section split">
+      <div>
+        <p class="eyebrow">How it works</p>
+        <h2>A transparent loop.</h2>
+        <ol class="steps">
+          <li><strong>Plan.</strong> Break the question into sub-questions.</li>
+          <li><strong>Search.</strong> Query academic and web providers in parallel.</li>
+          <li><strong>Read.</strong> Extract verbatim evidence with locators.</li>
+          <li><strong>Gap check.</strong> Run bounded follow-up rounds.</li>
+          <li><strong>Synthesize.</strong> Write a cited report and save the trail.</li>
+        </ol>
+      </div>
+      <div class="source-card">
+        <p class="eyebrow">Source tiers</p>
+        <div class="badges">
+          <span class="badge academic">Academic · high</span>
+          <span class="badge institution">Institution · high</span>
+          <span class="badge news">News · medium</span>
+          <span class="badge web">Web · low</span>
+          <span class="badge media">Media · low</span>
+        </div>
+        <p>
+          Labels are routing hints, not peer-review claims. Academic results
+          come from scholarly APIs; web and media results are never presented as
+          peer-reviewed.
+        </p>
+      </div>
+    </section>
+
+    <section class="section cta">
+      <div>
+        <h2>Run it your way.</h2>
+        <p>Install from PyPI for the CLI and web UI, or download the desktop app.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="button primary" id="cta-download" href="#" download>Download</a>
+        <a class="button secondary" href="https://pypi.org/project/indagar/">Install with pip</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand">
+      <img src="assets/indagar-icon.png" alt="" width="24" height="24">
+      <span>Indagar</span>
+    </div>
+    <p>Local-first research with an inspectable trail.</p>
+    <nav>
+      <a href="https://github.com/michael-borck/indagar">GitHub</a>
+      <a href="https://pypi.org/project/indagar/">PyPI</a>
+      <a href="https://github.com/michael-borck/indagar/blob/main/SPEC.md">Spec</a>
+      <a href="https://github.com/michael-borck/indagar/blob/main/LICENSE">MIT</a>
+    </nav>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

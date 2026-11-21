@@ -2,6 +2,8 @@
 
 **Deep research from the command line.**
 
+[Website](https://michael-borck.github.io/indagar/) · [PyPI](https://pypi.org/project/indagar/) · [GitHub](https://github.com/michael-borck/indagar)
+
 Indagar asks a question, plans sub-questions, searches multiple sources, reads
 what it finds, and produces a cited research report or a source dossier. The name is Spanish for
 *to investigate, inquire, or probe*.

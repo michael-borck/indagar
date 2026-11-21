@@ -26,6 +26,15 @@ untrusted network.
 
 ## Packaging
 
-This is a source shell, not a bundled Python distribution. Packaging needs to
-bundle a Python environment or install Indagar on the target machine. Add
-`electron-builder` later for a signed `.app`/`.dmg`.
+```bash
+npm run dist
+```
+
+`electron-builder.yml` builds a universal macOS DMG/ZIP, a Windows NSIS
+installer, and a Linux AppImage. The GitHub `Desktop release` workflow runs on
+`v*` tags, publishes the assets, and uploads `latest*.yml` for auto-update.
+
+Packaged builds check GitHub releases every six hours. macOS auto-update
+requires a signed build; Windows and Linux update unsigned builds but still
+show OS security warnings. The app is still a shell around the installed
+`indagar` command, not a bundled Python distribution.

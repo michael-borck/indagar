@@ -1,0 +1,44 @@
+name: Desktop release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: michael-borck/app-hq/.github/workflows/electron-release.yml@main
+    secrets: inherit
+    with:
+      product-name: Indagar
+      node-version: "24"
+      project-path: desktop
+      install-command: npm ci
+      build-command: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        CURRENT=$(node -p "require('./package.json').version")
+        if [ "$CURRENT" != "$VERSION" ]; then
+          npm version "$VERSION" --no-git-tag-version
+        fi
+      package-command: |
+        if [ "$PLATFORM" = "mac" ]; then
+          npx electron-builder --mac --universal --publish always
+        else
+          npx electron-builder --$PLATFORM --x64 --publish always
+        fi
+      preflight-command: |
+        node --check main.js
+        node --check preload.js
+      notarize-mode: none
+      notarize-check-command: echo "Skipping unsigned notarization check"
+      notarize-check-verify: echo "Skipping unsigned notarization check"
+      matrix: |
+        [
+          {"os":"macos-15","platform":"mac"},
+          {"os":"ubuntu-latest","platform":"linux"},
+          {"os":"windows-latest","platform":"win"}
+        ]
+      publish-release: true

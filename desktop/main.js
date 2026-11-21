@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const net = require("node:net");
@@ -120,6 +121,31 @@ async function createWindow() {
   await mainWindow.loadURL(serverUrl);
 }
 
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = console;
+  autoUpdater.on("error", (error) => {
+    console.error("[updates]", error);
+  });
+  autoUpdater.on("update-available", (info) => {
+    console.log(`[updates] available ${info.version}`);
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    console.log(`[updates] downloaded ${info.version}`);
+  });
+  autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+    console.error("[updates]", error);
+  });
+  const timer = setInterval(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      console.error("[updates]", error);
+    });
+  }, 6 * 60 * 60 * 1000);
+  timer.unref();
+}
+
 function buildMenu() {
   const template = [
     ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
@@ -138,6 +164,20 @@ function buildMenu() {
     {
       role: "help",
       submenu: [
+        {
+          label: "Check for Updates…",
+          click: () => {
+            if (!app.isPackaged) {
+              dialog.showMessageBox({
+                message: "Updates are checked in packaged builds.",
+              });
+              return;
+            }
+            autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+              dialog.showErrorBox("Update check failed", String(error));
+            });
+          },
+        },
         {
           label: "Indagar on GitHub",
           click: () => shell.openExternal("https://github.com/michael-borck/indagar"),
@@ -159,6 +199,7 @@ app.whenReady().then(async () => {
     }
     buildMenu();
     await createWindow();
+    setupAutoUpdater();
   } catch (error) {
     console.error(error);
     dialog.showErrorBox("Indagar could not start", String(error));

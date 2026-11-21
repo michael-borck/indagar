@@ -1,16 +1,24 @@
 {
   "name": "indagar-desktop",
-  "version": "0.1.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Desktop shell for Indagar",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "electron": "^45.0.0"
-  }
+    "@electron/universal": "^3.0.6",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "author": "Michael Borck",
+  "license": "MIT"
 }

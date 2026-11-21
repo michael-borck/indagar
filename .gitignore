@@ -16,3 +16,6 @@ desktop/dist/
 !.env.example
 .DS_Store
 ._*
+
+!desktop/build/
+!desktop/build/**

@@ -1,0 +1,38 @@
+appId: com.michaelborck.indagar
+productName: Indagar
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.js
+  - preload.js
+  - package.json
+asar: true
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  target:
+    - dmg
+    - zip
+  artifactName: Indagar-mac-universal.${ext}
+  hardenedRuntime: true
+  notarize: false
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+  artifactName: Indagar-win-x64-setup.${ext}
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+  category: Office
+  artifactName: Indagar-linux-x64.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish:
+  provider: github
+  owner: michael-borck
+  repo: indagar
+  releaseType: release

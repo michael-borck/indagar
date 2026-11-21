@@ -9,6 +9,14 @@ Changelog, and the project uses semantic versioning.
 
 - Load `INDAGAR_MEDIA` and `INDAGAR_MEDIA_ORDER` from the environment.
 
+### Desktop
+
+- Electron-builder packaging for macOS (universal), Windows (NSIS), and Linux
+  (AppImage).
+- GitHub release workflow via the shared `app-hq` Electron workflow.
+- Landing page with platform detection and direct release-asset downloads.
+- `electron-updater` update checks in packaged builds.
+
 ## [0.6.0] - 2026-11-21
 
 ### Added

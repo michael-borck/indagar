@@ -23,7 +23,9 @@ node --check desktop/main.js
 node --check desktop/preload.js
 INDAGAR_DESKTOP_SMOKE=1 INDAGAR_BIN="$(which indagar)" \
   desktop/node_modules/.bin/electron desktop
+cd desktop && npm run dist
 ```
+
 
 ## Invariants
 
@@ -52,3 +54,6 @@ INDAGAR_DESKTOP_SMOKE=1 INDAGAR_BIN="$(which indagar)" \
   source-only and assumes Indagar is installed.
 - Media transcripts may be unavailable; never invent transcript text. Media
   sources are low confidence.
+- Desktop release builds run on `v*` tags via the shared app-hq Electron
+  workflow. Direct download links use fixed asset names under
+  `releases/latest/download/`.
