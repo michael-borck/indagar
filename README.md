@@ -150,7 +150,7 @@ across the planner, reader, and writer roles.
 - [ ] Desktop shell
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.2.0`, which includes the Phase 1 core loop. Phase 2 is next.
+PyPI has `0.2.1`, which includes the Phase 1 core loop and polish. Phase 2 is next.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
