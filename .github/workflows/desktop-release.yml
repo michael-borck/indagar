@@ -9,37 +9,72 @@ permissions:
   contents: write
 
 jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: mac
+            args: --mac --universal
+          - os: ubuntu-latest
+            platform: linux
+            args: --linux --x64
+          - os: windows-latest
+            platform: win
+            args: --win --x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
+      CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Install
+        run: npm ci
+      - name: Set version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$VERSION" ]; then
+            npm version "$VERSION" --no-git-tag-version
+          fi
+      - name: Package
+        shell: bash
+        run: npx electron-builder ${{ matrix.args }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: indagar-${{ matrix.platform }}
+          path: |
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.exe
+            desktop/dist/*.AppImage
+            desktop/dist/latest*.yml
+            desktop/dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 5
+
   release:
-    uses: michael-borck/app-hq/.github/workflows/electron-release.yml@main
-    secrets: inherit
-    with:
-      product-name: Indagar
-      node-version: "24"
-      cache: ""
-      project-path: desktop
-      install-command: npm ci
-      build-command: |
-        VERSION="${GITHUB_REF_NAME#v}"
-        CURRENT=$(node -p "require('./package.json').version")
-        if [ "$CURRENT" != "$VERSION" ]; then
-          npm version "$VERSION" --no-git-tag-version
-        fi
-      package-command: |
-        if [ "$PLATFORM" = "mac" ]; then
-          npx electron-builder --mac --universal --publish always
-        else
-          npx electron-builder --$PLATFORM --x64 --publish always
-        fi
-      preflight-command: |
-        node --check main.js
-        node --check preload.js
-      notarize-mode: none
-      notarize-check-command: echo "Skipping unsigned notarization check"
-      notarize-check-verify: echo "Skipping unsigned notarization check"
-      matrix: |
-        [
-          {"os":"macos-15","platform":"mac"},
-          {"os":"ubuntu-latest","platform":"linux"},
-          {"os":"windows-latest","platform":"win"}
-        ]
-      publish-release: true
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Indagar ${{ github.ref_name }}
+          draft: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: artifacts/*
