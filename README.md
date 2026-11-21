@@ -248,9 +248,9 @@ across the planner, reader, and writer roles.
 - [ ] Bundled/signed desktop installers
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.6.2`. Desktop installers bundle `uv` and the Indagar wheel, create
-their own Python environment on first run, and update the engine when the app
-updates. macOS auto-update still requires a signed build.
+PyPI has `0.6.3`. The desktop app downloads `uv`, creates its own Python
+environment on first run with the bundled wheel, and updates the engine with
+the app. The Apple Silicon macOS build is signed and notarized.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
