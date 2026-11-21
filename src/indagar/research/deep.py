@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 from ..citations import CitationLedger
 from ..config import Settings
@@ -21,7 +22,8 @@ from ..models import (
 from ..progress import ProgressCallback, emit_progress
 from ..search.chain import SearchChain, build_chain, normalize_url
 from ..usage import TrackedLLM, UsageTracker
-from .extract import extract_claims
+from .checkpoint import CheckpointCallback, DeepCheckpoint
+from .extract import ClaimCandidate, extract_claims
 from .gaps import check_gaps
 from .loop import render_appendix, run_id
 from .planner import plan_question, plan_question_llm
@@ -62,16 +64,24 @@ def _compose_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
-async def _read_source(
+@dataclass(frozen=True)
+class SourceExtraction:
+    source: Source
+    status: str
+    chars: int
+    claims: tuple[ClaimCandidate, ...]
+    latency_ms: int
+    error: str | None = None
+
+
+async def _extract_source(
     source: Source,
     reader: Reader,
     llm: LLMProvider,
-    ledger: CitationLedger,
-    reads: list[ReadAttempt],
     *,
     max_claims: int,
     progress: ProgressCallback | None = None,
-) -> None:
+) -> SourceExtraction:
     started = time.perf_counter()
     emit_progress(
         progress,
@@ -86,7 +96,6 @@ async def _read_source(
     except Exception as exc:
         latency = _ms(started)
         error = _error_text(exc)
-        reads.append(ReadAttempt(source.url, "error", 0, 0, latency, error))
         emit_progress(
             progress,
             "read_done",
@@ -98,11 +107,10 @@ async def _read_source(
             latency_ms=latency,
             error=error,
         )
-        return
+        return SourceExtraction(source, "error", 0, (), latency, error)
 
     if len(content.text.strip()) < 200:
         latency = _ms(started)
-        reads.append(ReadAttempt(source.url, "short", len(content.text), 0, latency))
         emit_progress(
             progress,
             "read_done",
@@ -113,7 +121,7 @@ async def _read_source(
             claims=0,
             latency_ms=latency,
         )
-        return
+        return SourceExtraction(source, "short", len(content.text), (), latency)
 
     try:
         candidates = await extract_claims(
@@ -126,16 +134,6 @@ async def _read_source(
     except (LLMError, ValueError) as exc:
         latency = _ms(started)
         error = _error_text(exc)
-        reads.append(
-            ReadAttempt(
-                source.url,
-                "error",
-                len(content.text),
-                0,
-                latency,
-                error,
-            )
-        )
         emit_progress(
             progress,
             "read_done",
@@ -147,26 +145,17 @@ async def _read_source(
             latency_ms=latency,
             error=error,
         )
-        return
-
-    for candidate in candidates:
-        ledger.add(
+        return SourceExtraction(
             source,
-            candidate.quote,
-            locator=candidate.locator,
-            note=candidate.note,
+            "error",
+            len(content.text),
+            (),
+            latency,
+            error,
         )
+
     status = "ok" if candidates else "no_evidence"
     latency = _ms(started)
-    reads.append(
-        ReadAttempt(
-            source.url,
-            status,
-            len(content.text),
-            len(candidates),
-            latency,
-        )
-    )
     claim_word = "claim" if len(candidates) == 1 else "claims"
     emit_progress(
         progress,
@@ -177,6 +166,13 @@ async def _read_source(
         chars=len(content.text),
         claims=len(candidates),
         latency_ms=latency,
+    )
+    return SourceExtraction(
+        source,
+        status,
+        len(content.text),
+        tuple(candidates),
+        latency,
     )
 
 
@@ -191,9 +187,11 @@ async def run_deep_research(
     depth: int | None = None,
     started: float | None = None,
     progress: ProgressCallback | None = None,
+    resume: DeepCheckpoint | None = None,
+    checkpoint: CheckpointCallback | None = None,
 ) -> Run:
     """Plan, search, read, extract, gap-check, and synthesize one run."""
-    normalized = " ".join(question.split())
+    normalized = resume.question if resume is not None else " ".join(question.split())
     if not normalized:
         raise ValueError("question is required")
 
@@ -205,48 +203,107 @@ async def run_deep_research(
         )
     reader = reader or build_reader(settings)
 
-    limit = max(1, max_sources or settings.max_sources)
-    rounds = settings.max_depth if depth is None else depth
-    rounds = max(0, min(2, rounds))
+    identifier = resume.run_id if resume is not None else run_id(normalized)
+    limit = max(
+        1,
+        max_sources
+        if max_sources is not None
+        else (resume.max_sources if resume is not None else settings.max_sources),
+    )
+    if resume is not None:
+        rounds = max(0, min(2, resume.depth))
+    else:
+        rounds = settings.max_depth if depth is None else depth
+        rounds = max(0, min(2, rounds))
     start = started if started is not None else time.monotonic()
 
-    tracker = UsageTracker()
+    tracker = UsageTracker.from_models(resume.usage) if resume is not None else UsageTracker()
     planner_llm = TrackedLLM(llms.planner, tracker)
     reader_llm = TrackedLLM(llms.reader, tracker)
     writer_llm = TrackedLLM(llms.writer, tracker)
 
+    plan = resume.plan if resume is not None else None
+    sources = list(resume.sources) if resume is not None else []
+    attempts = list(resume.attempts) if resume is not None else []
+    reads = list(resume.reads) if resume is not None else []
+    ledger = CitationLedger(resume.citations if resume is not None else ())
+    seen = {normalize_url(source.url) for source in sources}
+    buckets: dict[str, list[Source]] = {}
+    rounds_done = resume.rounds_done if resume is not None else 0
+    phase = resume.phase if resume is not None else "planned"
+
     def timed_out() -> bool:
         return time.monotonic() - start >= settings.max_seconds
 
-    try:
-        plan = await plan_question_llm(normalized, planner_llm, max_sub_questions=4)
-    except (LLMError, ValueError):
-        plan = replace(
-            plan_question(normalized, max_sub_questions=4),
-            planner="deterministic-fallback",
+    def snapshot(current_phase: str, current_rounds: int) -> None:
+        if checkpoint is None or plan is None:
+            return
+        state = DeepCheckpoint(
+            run_id=identifier,
+            question=normalized,
+            plan=plan,
+            sources=tuple(sources),
+            attempts=tuple(attempts),
+            citations=ledger.citations,
+            reads=tuple(reads),
+            usage=tracker.to_models(),
+            rounds_done=current_rounds,
+            phase=current_phase,
+            depth=rounds,
+            max_sources=limit,
         )
+        try:
+            checkpoint(state)
+        except OSError:
+            pass
+
+    if resume is not None:
         emit_progress(
             progress,
-            "plan_fallback",
-            "Planner unavailable; using the deterministic plan",
-            planner=plan.planner,
-            sub_questions=[item.question for item in plan.sub_questions],
+            "resume",
+            f"Resuming {identifier} from {resume.phase}",
+            phase=resume.phase,
+            sources=len(sources),
+            citations=len(ledger.citations),
         )
+
+    if plan is None:
+        try:
+            plan = await plan_question_llm(
+                normalized,
+                planner_llm,
+                max_sub_questions=4,
+            )
+        except (LLMError, ValueError):
+            plan = replace(
+                plan_question(normalized, max_sub_questions=4),
+                planner="deterministic-fallback",
+            )
+            emit_progress(
+                progress,
+                "plan_fallback",
+                "Planner unavailable; using the deterministic plan",
+                planner=plan.planner,
+                sub_questions=[item.question for item in plan.sub_questions],
+            )
+        else:
+            emit_progress(
+                progress,
+                "plan",
+                f"Planned {len(plan.sub_questions)} sub-questions",
+                planner=plan.planner,
+                sub_questions=[item.question for item in plan.sub_questions],
+            )
+        snapshot("planned", rounds_done)
     else:
         emit_progress(
             progress,
             "plan",
-            f"Planned {len(plan.sub_questions)} sub-questions",
+            f"Resuming plan with {len(plan.sub_questions)} sub-questions",
             planner=plan.planner,
             sub_questions=[item.question for item in plan.sub_questions],
+            resumed=True,
         )
-
-    buckets: dict[str, list[Source]] = {}
-    seen: set[str] = set()
-    attempts: list[SearchAttempt] = []
-    sources: list[Source] = []
-    reads: list[ReadAttempt] = []
-    ledger = CitationLedger()
 
     async def search_question(sub_question: SubQuestion) -> None:
         if timed_out():
@@ -278,68 +335,124 @@ async def run_deep_research(
             seen.add(key)
             bucket.append(replace(source, sub_question=sub_question.question))
 
-    async def read_round_robin() -> None:
+    semaphore = asyncio.Semaphore(max(1, min(8, settings.concurrency)))
+
+    async def read_round_robin(snapshot_phase: str) -> None:
         while len(sources) < limit and not timed_out():
-            added = False
+            batch: list[Source] = []
             for question_key in list(buckets):
-                if len(sources) >= limit or timed_out():
+                if len(sources) + len(batch) >= limit or timed_out():
                     break
                 bucket = buckets[question_key]
                 if not bucket:
                     continue
-                source = bucket.pop(0)
-                added = True
-                sources.append(source)
-                await _read_source(
-                    source,
-                    reader,
-                    reader_llm,
-                    ledger,
-                    reads,
-                    max_claims=settings.max_claims,
-                    progress=progress,
-                )
-            if not added:
+                batch.append(bucket.pop(0))
+            if not batch:
                 break
 
-    for sub_question in plan.sub_questions:
-        if timed_out():
-            break
-        await search_question(sub_question)
-    await read_round_robin()
+            async def limited(source: Source) -> SourceExtraction:
+                async with semaphore:
+                    return await _extract_source(
+                        source,
+                        reader,
+                        reader_llm,
+                        max_claims=settings.max_claims,
+                        progress=progress,
+                    )
 
-    for round_index in range(rounds):
-        if timed_out() or len(sources) >= limit:
-            break
-        emit_progress(
-            progress,
-            "gap",
-            f"Checking coverage (round {round_index + 1})",
-            round=round_index + 1,
-        )
-        gap = await check_gaps(
-            planner_llm,
-            normalized,
-            plan,
-            ledger.citations,
-            tuple(sources),
-            max_follow_ups=settings.max_follow_ups,
-        )
-        emit_progress(
-            progress,
-            "gap_done",
-            "Coverage sufficient" if gap.done else f"{len(gap.follow_up)} follow-up questions",
-            done=gap.done,
-            follow_up=[item.question for item in gap.follow_up],
-        )
-        if gap.done or not gap.follow_up:
-            break
-        plan = replace(plan, sub_questions=plan.sub_questions + gap.follow_up)
-        for follow_up in gap.follow_up:
+            results = await asyncio.gather(
+                *(limited(source) for source in batch),
+                return_exceptions=True,
+            )
+            for source, result in zip(batch, results, strict=True):
+                if isinstance(result, asyncio.CancelledError):
+                    raise result
+                if isinstance(result, Exception):
+                    error = _error_text(result)
+                    result = SourceExtraction(source, "error", 0, (), 0, error)
+                    emit_progress(
+                        progress,
+                        "read_done",
+                        f"Read failed: {source.title}",
+                        url=source.url,
+                        status="error",
+                        chars=0,
+                        claims=0,
+                        latency_ms=0,
+                        error=error,
+                    )
+                if isinstance(result, BaseException):
+                    raise result
+                sources.append(source)
+                reads.append(
+                    ReadAttempt(
+                        source.url,
+                        result.status,
+                        result.chars,
+                        len(result.claims),
+                        result.latency_ms,
+                        result.error,
+                    )
+                )
+                for claim in result.claims:
+                    ledger.add(
+                        source,
+                        claim.quote,
+                        locator=claim.locator,
+                        note=claim.note,
+                    )
+            snapshot(snapshot_phase, rounds_done)
+
+    if phase == "planned":
+        for sub_question in plan.sub_questions:
             if timed_out():
                 break
-            await search_question(follow_up)
-        await read_round_robin()
+            await search_question(sub_question)
+            snapshot("planned", rounds_done)
+        await read_round_robin("planned")
+        if not timed_out():
+            phase = "gathered"
+        snapshot(phase, rounds_done)
+
+    if phase != "synthesis":
+        for round_index in range(rounds_done, rounds):
+            if timed_out() or len(sources) >= limit:
+                break
+            emit_progress(
+                progress,
+                "gap",
+                f"Checking coverage (round {round_index + 1})",
+                round=round_index + 1,
+            )
+            gap = await check_gaps(
+                planner_llm,
+                normalized,
+                plan,
+                ledger.citations,
+                tuple(sources),
+                max_follow_ups=settings.max_follow_ups,
+            )
+            emit_progress(
+                progress,
+                "gap_done",
+                "Coverage sufficient" if gap.done else f"{len(gap.follow_up)} follow-up questions",
+                done=gap.done,
+                follow_up=[item.question for item in gap.follow_up],
+            )
+            if gap.done or not gap.follow_up:
+                rounds_done = round_index + 1
+                snapshot("gaps", rounds_done)
+                break
+            plan = replace(plan, sub_questions=plan.sub_questions + gap.follow_up)
+            for follow_up in gap.follow_up:
+                if timed_out():
+                    break
+                await search_question(follow_up)
+            await read_round_robin("gaps")
+            rounds_done = round_index + 1
+            snapshot("gaps", rounds_done)
+        phase = "synthesis"
+        snapshot("synthesis", rounds_done)
 
     emit_progress(
         progress,
@@ -403,7 +516,7 @@ async def run_deep_research(
         usage,
     )
     return Run(
-        id=run_id(normalized),
+        id=identifier,
         question=normalized,
         plan=plan,
         sources=tuple(sources),

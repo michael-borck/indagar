@@ -3,6 +3,20 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.4.0] - 2026-11-21
+
+### Added
+
+- Source type and confidence labels for academic, institution, news,
+  practitioner, media, and web sources.
+- Bounded concurrent source reading and extraction (`INDAGAR_CONCURRENCY`).
+- Checkpointed deep-research runs with resume support in the CLI, API, and web
+  history.
+- DOCX and PDF exports in addition to Markdown and JSON.
+- Web export buttons and resumable-run history entries.
+- Tests for checkpoints, resume, concurrency, source labels, and document
+  exports.
+
 ## [0.3.0] - 2026-11-21
 
 ### Added

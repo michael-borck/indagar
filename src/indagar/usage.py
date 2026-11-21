@@ -31,6 +31,17 @@ class UsageTracker:
     def output_tokens(self) -> int:
         return sum(stats[2] for stats in self._by_model.values())
 
+    @classmethod
+    def from_models(cls, models: tuple[ModelUsage, ...]) -> UsageTracker:
+        tracker = cls()
+        for item in models:
+            tracker._by_model[(item.provider, item.model)] = [
+                item.calls,
+                item.input_tokens,
+                item.output_tokens,
+            ]
+        return tracker
+
     def to_models(self) -> tuple[ModelUsage, ...]:
         return tuple(
             ModelUsage(

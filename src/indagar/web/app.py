@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from .. import __version__
 from ..config import Settings
 from ..estimate import estimate_run
+from ..exports import ExportError
 from ..llm.base import LLM_ROLES, LLMError
 from .jobs import Job, JobManager, ResearchRequest
 
@@ -117,6 +118,7 @@ def create_app(
     def list_runs() -> dict[str, object]:
         return {
             "active": [job.to_dict() for job in manager.active_jobs()],
+            "resumable": manager.resumable_runs(),
             "saved": manager.saved_runs(),
         }
 
@@ -177,6 +179,44 @@ def create_app(
             media_type="application/json",
             filename=f"{run_id}.json",
         )
+
+    @app.get("/api/runs/{run_id}/export.docx")
+    def export_docx(run_id: str) -> FileResponse:
+        try:
+            path = manager.ensure_export(run_id, "docx")
+        except ExportError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
+        if path is None:
+            raise HTTPException(status_code=404, detail="DOCX not found")
+        return FileResponse(
+            path,
+            media_type=("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            filename=f"{run_id}.docx",
+        )
+
+    @app.get("/api/runs/{run_id}/export.pdf")
+    def export_pdf(run_id: str) -> FileResponse:
+        try:
+            path = manager.ensure_export(run_id, "pdf")
+        except ExportError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
+        if path is None:
+            raise HTTPException(status_code=404, detail="PDF not found")
+        return FileResponse(
+            path,
+            media_type="application/pdf",
+            filename=f"{run_id}.pdf",
+        )
+
+    @app.post("/api/runs/{run_id}/resume", status_code=202)
+    async def resume_run(run_id: str) -> dict[str, object]:
+        try:
+            job = manager.resume(run_id)
+        except (LLMError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if job is None:
+            raise HTTPException(status_code=404, detail="Checkpoint not found")
+        return job.to_dict()
 
     @app.get("/api/runs/{run_id}")
     def get_run(run_id: str) -> dict[str, object]:

@@ -26,8 +26,8 @@ def render_citations(citations: Iterable[Citation]) -> str:
         return "_No citations yet._"
 
     lines = [
-        "| ID | Source | Sub-question | Locator | Quote |",
-        "|---|---|---|---|---|",
+        "| ID | Source | Type | Confidence | Sub-question | Locator | Quote |",
+        "|---|---|---|---|---|---|---|",
     ]
     for citation in items:
         title = _link_title(citation.title) or citation.source_url
@@ -38,6 +38,8 @@ def render_citations(citations: Iterable[Citation]) -> str:
                 [
                     _cell(citation.id),
                     source,
+                    _cell(citation.source_type),
+                    _cell(citation.confidence),
                     _cell(citation.sub_question or ""),
                     _cell(citation.locator or ""),
                     _cell(_truncate(citation.quote)),
@@ -95,6 +97,7 @@ class CitationLedger:
             sub_question=source.sub_question,
             note=note,
             source_type=source.source_type,
+            confidence=source.confidence,
         )
         self._append(citation)
         return citation

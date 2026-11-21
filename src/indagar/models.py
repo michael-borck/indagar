@@ -17,6 +17,7 @@ class Source:
     provider: str = ""
     source_type: str = "web"
     sub_question: str | None = None
+    confidence: str = "low"
 
     @property
     def domain(self) -> str:
@@ -39,6 +40,7 @@ class Citation:
     sub_question: str | None = None
     note: str = ""
     source_type: str = "web"
+    confidence: str = "low"
 
     def __post_init__(self) -> None:
         if not self.id.strip():

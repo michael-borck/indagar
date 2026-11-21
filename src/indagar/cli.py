@@ -15,6 +15,7 @@ from .config import Settings
 from .estimate import cost_for_tokens, estimate_run
 from .llm.base import LLM_ROLES, LLMError
 from .llm.factory import build_llm, build_llms
+from .research.checkpoint import delete_checkpoint, load_checkpoint, save_checkpoint
 from .research.deep import run_deep_research
 from .research.loop import run_research
 from .search.chain import build_chain
@@ -75,7 +76,8 @@ def doctor() -> None:
     console.print(
         f"Budgets: sources={settings.max_sources}, "
         f"seconds={settings.max_seconds}, search_limit={settings.search_limit}, "
-        f"depth={settings.max_depth}, retries={settings.llm_max_retries}, "
+        f"depth={settings.max_depth}, concurrency={settings.concurrency}, "
+        f"retries={settings.llm_max_retries}, "
         f"min_interval={settings.llm_min_interval}s, "
         f"llm_max_tokens={settings.llm_max_tokens}"
     )
@@ -231,7 +233,7 @@ def search(
 
 @app.command()
 def research(
-    question: str = typer.Argument(..., help="Question or topic to research"),
+    question: str | None = typer.Argument(None, help="Question or topic to research"),
     llm: bool = typer.Option(
         False,
         "--llm",
@@ -244,6 +246,11 @@ def research(
         max=2,
         help="Follow-up rounds for --llm; 0 disables",
     ),
+    resume: str | None = typer.Option(
+        None,
+        "--resume",
+        help="Resume a checkpointed run id",
+    ),
     max_sources: int = typer.Option(0, "--max-sources", min=0, help="0 uses INDAGAR_MAX_SOURCES"),
     out: Path | None = typer.Option(None, "--out", "-o", help="Markdown output path"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the estimate and exit"),
@@ -252,6 +259,22 @@ def research(
     settings = _settings_or_exit()
     if max_sources:
         settings = replace(settings, max_sources=max_sources)
+
+    state = None
+    if resume:
+        if not llm:
+            console.print("[red]Use --llm with --resume.[/red]")
+            raise typer.Exit(2)
+        state = load_checkpoint(Path("runs"), resume)
+        if state is None:
+            console.print(f"[red]No checkpoint found for {resume}.[/red]")
+            raise typer.Exit(1)
+        question = state.question
+        settings = replace(settings, max_sources=state.max_sources)
+
+    if not question:
+        console.print("[red]Provide a question or use --resume.[/red]")
+        raise typer.Exit(2)
 
     try:
         estimate = estimate_run(question, settings, depth=depth, llm=llm)
@@ -263,6 +286,7 @@ def research(
     if dry_run:
         return
 
+    runs_dir = Path("runs")
     try:
         if llm:
             llms = build_llms(settings)
@@ -272,6 +296,8 @@ def research(
                     settings,
                     llms=llms,
                     depth=depth,
+                    resume=state,
+                    checkpoint=lambda saved: save_checkpoint(runs_dir, saved),
                 )
             )
         else:
@@ -307,6 +333,8 @@ def research(
             console.print(f"Token cost: ${cost:.4f}")
 
     json_path, markdown_path = save_run(run, out=out)
+    if llm:
+        delete_checkpoint(runs_dir, run.id)
     console.print(f"Run record: {json_path}")
     console.print(f"Markdown: {markdown_path}")
 

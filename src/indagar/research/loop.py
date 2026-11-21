@@ -49,7 +49,12 @@ def render_appendix(
         lines.append("_No sources were returned._")
     for index, source in enumerate(sources, start=1):
         lines.append(f"{index}. **{source.title}** — {source.url}")
-        meta = [f"provider: {source.provider or 'unknown'}", f"domain: {source.domain}"]
+        meta = [
+            f"provider: {source.provider or 'unknown'}",
+            f"domain: {source.domain}",
+            f"type: {source.source_type}",
+            f"confidence: {source.confidence}",
+        ]
         if source.sub_question:
             meta.append(f"sub-question: {source.sub_question}")
         lines.append(f"   {' · '.join(meta)}")

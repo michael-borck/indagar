@@ -9,9 +9,20 @@ from pathlib import Path
 from uuid import uuid4
 
 from ..config import Settings
+from ..exports import export_file
 from ..llm.factory import build_llms
 from ..models import Run, utc_now
 from ..progress import ProgressCallback, ProgressEvent
+from ..research.checkpoint import (
+    CheckpointCallback,
+    DeepCheckpoint,
+    delete_checkpoint,
+    load_checkpoint,
+    save_checkpoint,
+)
+from ..research.checkpoint import (
+    resumable_runs as scan_checkpoints,
+)
 from ..research.deep import run_deep_research
 from ..research.loop import run_research
 from ..store import save_run
@@ -25,6 +36,8 @@ class ResearchRequest:
     llm: bool = False
     depth: int | None = None
     max_sources: int | None = None
+    resume: DeepCheckpoint | None = None
+    checkpoint: CheckpointCallback | None = None
 
 
 Runner = Callable[[Settings, ResearchRequest, ProgressCallback], Awaitable[Run]]
@@ -43,6 +56,8 @@ async def default_runner(
             llms=llms,
             depth=request.depth,
             progress=progress,
+            resume=request.resume,
+            checkpoint=request.checkpoint,
         )
     return await run_research(request.question, settings, progress=progress)
 
@@ -136,6 +151,10 @@ class JobManager:
 
     def start(self, request: ResearchRequest) -> Job:
         self._validate(request)
+        request = replace(
+            request,
+            checkpoint=lambda state: save_checkpoint(self.runs_dir, state),
+        )
         job = Job(id=f"job-{uuid4().hex[:12]}", request=request)
         settings = self.settings
         if request.max_sources is not None:
@@ -167,6 +186,7 @@ class JobManager:
             run = await self.runner(settings, request, job.emit_progress)
             job.run = run
             save_run(run, runs_dir=self.runs_dir)
+            delete_checkpoint(self.runs_dir, run.id)
             job.status = "completed"
             job.emit(
                 "completed",
@@ -189,6 +209,23 @@ class JobManager:
         finally:
             job.finished_at = utc_now()
             job.finish()
+
+    def resume(self, run_id: str) -> Job | None:
+        state = load_checkpoint(self.runs_dir, run_id)
+        if state is None:
+            return None
+        return self.start(
+            ResearchRequest(
+                question=state.question,
+                llm=True,
+                depth=state.depth,
+                max_sources=state.max_sources,
+                resume=state,
+            )
+        )
+
+    def resumable_runs(self) -> list[dict[str, object]]:
+        return scan_checkpoints(self.runs_dir)
 
     def cancel(self, job_id: str) -> Job | None:
         job = self.jobs.get(job_id)
@@ -218,11 +255,21 @@ class JobManager:
         path = self._path(run_id, suffix)
         return path if path is not None and path.exists() else None
 
+    def ensure_export(self, run_id: str, kind: str) -> Path | None:
+        if not SAFE_ID.fullmatch(run_id):
+            return None
+        markdown = self.runs_dir / f"{run_id}.md"
+        if not markdown.exists():
+            return None
+        return export_file(markdown, kind)
+
     def saved_runs(self) -> list[dict[str, object]]:
         if not self.runs_dir.exists():
             return []
         summaries: list[dict[str, object]] = []
         for path in self.runs_dir.glob("*.json"):
+            if path.name.endswith(".state.json"):
+                continue
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):

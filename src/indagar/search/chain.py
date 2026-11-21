@@ -5,6 +5,7 @@ from collections import OrderedDict
 from dataclasses import replace
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from ..classify import classify_url
 from ..config import Settings
 from ..models import SearchAttempt, SearchOutcome, Source
 from .base import SearchProvider
@@ -93,12 +94,18 @@ class SearchChain:
                     if normalized in seen:
                         continue
                     seen.add(normalized)
-                    results.append(
-                        replace(
-                            source,
-                            provider=source.provider or provider.name,
-                        )
+                    source = replace(
+                        source,
+                        provider=source.provider or provider.name,
                     )
+                    if source.source_type == "web":
+                        source_type, confidence = classify_url(source.url)
+                        source = replace(
+                            source,
+                            source_type=source_type,
+                            confidence=confidence,
+                        )
+                    results.append(source)
                     if len(results) >= limit:
                         break
                 latency = int((time.perf_counter() - started) * 1000)

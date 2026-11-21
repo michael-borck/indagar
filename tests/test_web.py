@@ -18,6 +18,11 @@ from indagar.models import (
     SubQuestion,
 )
 from indagar.progress import ProgressEvent
+from indagar.research.checkpoint import (
+    DeepCheckpoint,
+    load_checkpoint,
+    save_checkpoint,
+)
 from indagar.web.app import create_app
 from indagar.web.jobs import JobManager, ResearchRequest
 
@@ -65,6 +70,14 @@ async def slow_runner(settings, request, progress) -> Run:
     progress(ProgressEvent("status", "Slow run", {}))
     await asyncio.sleep(0.2)
     return _run(request)
+
+
+async def resume_runner(settings, request, progress) -> Run:
+    progress(ProgressEvent("resume", "Resumed checkpoint", {}))
+    run = _run(request)
+    if request.resume is not None:
+        run.id = request.resume.run_id
+    return run
 
 
 def _client(tmp_path: Path, runner=fake_runner) -> tuple[TestClient, JobManager]:
@@ -149,6 +162,14 @@ def test_run_lifecycle_exports_and_sse(tmp_path):
     assert payload.status_code == 200
     assert payload.json()["id"] == "test-run"
 
+    docx = client.get("/api/runs/test-run/export.docx")
+    assert docx.status_code == 200
+    assert docx.content.startswith(b"PK")
+
+    pdf = client.get("/api/runs/test-run/export.pdf")
+    assert pdf.status_code == 200
+    assert pdf.content.startswith(b"%PDF")
+
     listing = client.get("/api/runs").json()
     assert any(item["run_id"] == "test-run" for item in listing["saved"])
 
@@ -200,8 +221,63 @@ def test_cancel_job(tmp_path):
     assert finished["status"] == "cancelled"
 
 
+def test_resume_endpoint_continues_a_checkpoint(tmp_path):
+    settings = Settings(
+        firecrawl_url="http://localhost:3002",
+        anthropic_api_key="key",
+        llm_provider="anthropic",
+        llm_model="model",
+    )
+    runs_dir = tmp_path / "runs"
+    manager = JobManager(settings, runs_dir=runs_dir, runner=resume_runner)
+    client = TestClient(create_app(settings, manager))
+    source = Source(
+        title="Example",
+        url="https://example.com/page",
+        provider="fake",
+        sub_question="What is X?",
+    )
+    state = DeepCheckpoint(
+        run_id="resume-run",
+        question="What is X?",
+        plan=ResearchPlan(
+            "What is X?",
+            (SubQuestion("What is X?", "Answer directly."),),
+            planner="fake",
+        ),
+        sources=(source,),
+        citations=(
+            Citation(
+                id="C1",
+                source_url=source.url,
+                title=source.title,
+                quote="A grounded claim.",
+            ),
+        ),
+        phase="gathered",
+        depth=0,
+        max_sources=1,
+    )
+    save_checkpoint(runs_dir, state)
+
+    listing = client.get("/api/runs").json()
+    assert any(item["run_id"] == "resume-run" for item in listing["resumable"])
+
+    response = client.post("/api/runs/resume-run/resume")
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+
+    finished = _wait(client, job_id)
+    assert finished["status"] == "completed"
+    assert finished["run_id"] == "resume-run"
+    assert load_checkpoint(runs_dir, "resume-run") is None
+    assert client.get("/api/runs").json()["resumable"] == []
+
+
 def test_unknown_run_is_404(tmp_path):
     client, _ = _client(tmp_path)
 
     assert client.get("/api/runs/missing").status_code == 404
     assert client.get("/api/runs/missing/export.md").status_code == 404
+    assert client.get("/api/runs/missing/export.docx").status_code == 404
+    assert client.get("/api/runs/missing/export.pdf").status_code == 404

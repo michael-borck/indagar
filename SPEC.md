@@ -1,6 +1,6 @@
 # Indagar — design specification
 
-**Status:** Phase 2 in progress: local web UI
+**Status:** Phase 2 complete
 **Name:** Indagar (Spanish: to investigate, inquire, probe)
 **Licence:** MIT
 
@@ -42,7 +42,8 @@ Sources are not equal. Every source carries a type and a confidence label.
 | `web` | General page | Low until checked |
 
 Academic records are verified separately. Web and media sources are never
-presented as peer-reviewed.
+presented as peer-reviewed. Source type and confidence labels are URL
+heuristics implemented in `classify.py`; they are routing hints, not checks.
 
 ## 4. Research loop
 
@@ -126,7 +127,7 @@ Every run has explicit caps:
 - `max_seconds` wall clock
 - `max_tokens` per model call and per run
 - `max_content_chars` per source and `max_claims` per source
-- `concurrency` 2-4 by default
+- `concurrency` source reads, default `2` and capped at `8`
 
 Controls:
 
@@ -137,8 +138,9 @@ Controls:
 - Search results and identical queries are cached; page-level caching is still
   to come.
 - Small/local model for extraction and summarisation.
-- Stop and resume: a run is a saved state, not a single function call; resume
-  is Phase 2.
+- Stop and resume: a run writes checkpoints after planning, searches, read
+  batches, and gap rounds; `--resume` and the web history continue from the
+  latest state.
 - A pre-run estimate reports upper-bound searches, sources, calls, tokens, and
   an optional dollar cost from user-supplied per-million-token rates.
 - Actual token usage is recorded per provider/model after the run.
@@ -155,6 +157,8 @@ src/indagar/
   models.py         Source, Citation, SubQuestion, ResearchPlan, ReadAttempt,
                     ModelUsage, SearchOutcome, Run
   citations.py      Citation ledger, dedupe, Markdown rendering
+  classify.py       Source type and confidence heuristics
+  exports.py        DOCX and PDF export
   store.py          Run JSON + Markdown storage
   usage.py          Per-model call and token accounting
   estimate.py       Pre-run tokens, calls, and optional cost estimate
@@ -180,11 +184,12 @@ src/indagar/
     synthesize.py   Citation-checked narrative
     loop.py         Phase 0 search, collect, dedupe, dossier
     deep.py         Full planner -> read -> extract -> gap -> synthesize loop
+    checkpoint.py   Checkpoint state, save/load, resumable runs
     json_utils.py   Tolerant JSON object parsing
 ```
 
-Phase 1 is implemented. Phase 2 ships the local FastAPI service and web UI;
-resume, DOCX/PDF export, and source confidence labels remain.
+Phase 1 and Phase 2 are implemented. Phase 3 remains: desktop shell, academic
+APIs, and podcast/video sources.
 
 ## 9. Interfaces
 
@@ -198,25 +203,19 @@ indagar search "question" --limit 8
 indagar research "question" --max-sources 12 --out report.md
 indagar research "question" --llm --depth 1 --max-sources 12
 indagar research "question" --llm --dry-run
+indagar research --resume <run-id> --llm
 indagar serve --host 127.0.0.1 --port 8765
 ```
 
-### Web UI (Phase 2, in progress)
-
-Implemented:
+### Web UI (Phase 2, complete)
 
 - Question, budget, provider status.
 - Live progress over SSE: plan, searches, reads, gaps, synthesis.
 - Report view, source inspector, citations, run details, and usage.
-- Markdown and JSON export.
-- Job history and stop.
-
-Remaining:
-
-- Resume interrupted runs.
-- DOCX and PDF export.
 - Source type and confidence labels.
-- Concurrency controls.
+- Markdown, JSON, DOCX, and PDF export.
+- Job history, stop, and resume from checkpoints.
+- Bounded concurrent reads.
 
 ### Desktop (Phase 3)
 
@@ -242,7 +241,7 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
 |---|---|
 | 0 | Skeleton: CLI, search chain, deterministic plan, source dossier, tests, CI |
 | 1 | LLM planner, reader/extractor, gap loop, synthesis, citation ledger, usage panel |
-| 2 | Web UI, job history, live progress, source inspector, Markdown/JSON exports, resume, DOCX/PDF |
+| 2 | Web UI, job history, live progress, source inspector, Markdown/JSON/DOCX/PDF exports, resume |
 | 3 | Desktop shell, academic APIs, podcasts/videos, provider-native search as an option |
 
 ## 12. Phase 0 acceptance
@@ -271,14 +270,17 @@ Do not fork these projects. Borrow patterns and keep Indagar thin.
   full loop with fakes.
 - `ruff check`, `ruff format --check`, and `pytest` pass.
 
-## 14. Phase 2 acceptance (initial)
+## 14. Phase 2 acceptance
 
 - `indagar serve` starts the local FastAPI service and static UI.
 - The UI starts Phase 0 or `--llm` runs and shows provider status.
-- Progress streams over SSE; a running job can be stopped.
+- Progress streams over SSE; a running job can be stopped and resumed.
 - Completed runs are saved, listed in history, and reloadable.
-- The UI renders the report, sources, citations, run details, and usage.
-- Markdown and JSON exports download from the run.
-- API tests cover status, estimates, job lifecycle, SSE, cancellation, exports,
-  and missing runs.
+- The UI renders the report, sources, confidence labels, citations, run
+  details, and usage.
+- Markdown, JSON, DOCX, and PDF exports download from the run.
+- Source labels are heuristics and never presented as peer review.
+- Bounded concurrency is configurable and respected.
+- API tests cover status, estimates, job lifecycle, SSE, cancellation, resume,
+  exports, and missing runs.
 - `ruff check`, `ruff format --check`, `pytest`, and `node --check` pass.

@@ -14,7 +14,9 @@ indagar llm "Say hello" --role writer
 indagar research "What is X?" --llm --depth 0 --max-sources 3
 indagar estimate "What is X?" --max-sources 3 --depth 0
 indagar research "What is X?" --llm --dry-run
+indagar research --resume <run-id> --llm
 indagar serve --host 127.0.0.1 --port 8765
+node --check src/indagar/web/static/app.js
 ```
 
 ## Invariants
@@ -26,6 +28,10 @@ indagar serve --host 127.0.0.1 --port 8765
   full Phase 1 loop and must fail clearly when no provider or model is set.
 - Every citation needs a source and a non-empty quote. Extraction must verify
   that the quote actually appears in the source text; drop it otherwise.
+- Source type and confidence labels are URL heuristics, not verification.
+  Never describe a web or media source as peer-reviewed.
+- Checkpoints contain sources, quotes, and usage only; never API keys or raw
+  prompts. Resume must preserve citation deduplication.
 - Synthesis may cite only ledger IDs. Unknown IDs are a hard error and trigger
   the evidence-table fallback.
 - Do not store raw LLM prompts or provider payloads in run records. Store the final report, citations, source-read status, and usage.

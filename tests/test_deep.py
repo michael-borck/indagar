@@ -7,6 +7,7 @@ from indagar.config import Settings
 from indagar.llm.base import LLMResponse
 from indagar.llm.factory import LLMSet
 from indagar.models import SearchAttempt, SearchOutcome, Source
+from indagar.research.checkpoint import DeepCheckpoint
 from indagar.research.deep import run_deep_research
 from indagar.research.reader import SourceContent
 
@@ -50,6 +51,21 @@ class FakeReader:
             text=CONTENT,
             provider="fake",
         )
+
+
+class SlowReader(FakeReader):
+    def __init__(self) -> None:
+        super().__init__()
+        self.active = 0
+        self.max_active = 0
+
+    async def read(self, source: Source) -> SourceContent:
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        await asyncio.sleep(0.02)
+        content = await super().read(source)
+        self.active -= 1
+        return content
 
 
 class ScriptedLLM:
@@ -165,6 +181,67 @@ def test_deep_research_produces_citations_and_usage():
     assert "| C1 |" in run.report
     assert sum(item.calls for item in run.usage) == 4
     assert sum(item.input_tokens for item in run.usage) == 40
+
+
+def test_deep_research_writes_checkpoints_and_resumes():
+    states: list[DeepCheckpoint] = []
+    llm = ScriptedLLM()
+
+    run = asyncio.run(
+        run_deep_research(
+            "What is photosynthesis?",
+            Settings(max_sources=2, max_seconds=60, max_depth=0),
+            llms=_llms(llm),
+            reader=FakeReader(),
+            chain=FakeChain(),
+            checkpoint=states.append,
+        )
+    )
+
+    assert run.citations
+    assert "planned" in {state.phase for state in states}
+    assert "gathered" in {state.phase for state in states}
+    gathered = next(state for state in states if state.phase == "gathered")
+    assert len(gathered.sources) == 2
+    assert len(gathered.citations) == 2
+
+    resumed_chain = FakeChain()
+    resumed_reader = FakeReader()
+    resumed = asyncio.run(
+        run_deep_research(
+            gathered.question,
+            Settings(max_sources=2, max_seconds=60, max_depth=0),
+            llms=_llms(ScriptedLLM()),
+            reader=resumed_reader,
+            chain=resumed_chain,
+            resume=gathered,
+        )
+    )
+
+    assert resumed.id == gathered.run_id
+    assert resumed_chain.calls == []
+    assert resumed_reader.calls == []
+    assert len(resumed.citations) == len(gathered.citations)
+    assert "Research report" in resumed.report
+
+
+def test_deep_research_reads_concurrently():
+    chain = FakeChain()
+    reader = SlowReader()
+    llm = ScriptedLLM()
+
+    run = asyncio.run(
+        run_deep_research(
+            "What is photosynthesis?",
+            Settings(max_sources=2, max_seconds=60, max_depth=0, concurrency=2),
+            llms=_llms(llm),
+            reader=reader,
+            chain=chain,
+        )
+    )
+
+    assert reader.max_active == 2
+    assert len(run.reads) == 2
 
 
 def test_deep_research_runs_one_gap_round():

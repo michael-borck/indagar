@@ -130,6 +130,7 @@ async function loadHistory() {
   history.innerHTML = "";
   const items = [
     ...(data.active || []).map((job) => ({ kind: "job", ...job })),
+    ...(data.resumable || []).map((state) => ({ kind: "resume", ...state })),
     ...(data.saved || []).map((run) => ({ kind: "run", ...run })),
   ];
   if (!items.length) {
@@ -145,13 +146,17 @@ async function loadHistory() {
     const meta =
       item.kind === "job"
         ? `${item.status} · ${item.max_sources || "default"} sources`
-        : `${item.sources || 0} sources · ${item.citations || 0} citations`;
+        : item.kind === "resume"
+          ? `paused · ${item.sources || 0} sources · ${item.citations || 0} citations`
+          : `${item.sources || 0} sources · ${item.citations || 0} citations`;
     button.innerHTML = `<strong>${escapeHtml(question)}</strong><small>${escapeHtml(
       formatDate(item.created_at),
     )} · ${escapeHtml(meta)}</small>`;
     button.addEventListener("click", () => {
       if (item.kind === "job") {
         attachToJob(item.job_id);
+      } else if (item.kind === "resume" && item.run_id) {
+        resumeRun(item.run_id);
       } else if (item.run_id) {
         loadRun(item.run_id);
       }
@@ -326,6 +331,27 @@ async function startResearch() {
   }
 }
 
+async function resumeRun(runId) {
+  showError("");
+  clearProgress();
+  clearResult();
+  setBusy(true);
+  $("workspace-title").textContent = "Resuming";
+  $("workspace-subtitle").textContent = "Continuing from the saved checkpoint…";
+  try {
+    const job = await fetchJson(
+      `/api/runs/${encodeURIComponent(runId)}/resume`,
+      { method: "POST" },
+    );
+    state.jobId = job.job_id;
+    attachToJob(job.job_id);
+  } catch (error) {
+    setBusy(false);
+    $("workspace-title").textContent = "Ready";
+    showError(error.message);
+  }
+}
+
 async function cancelResearch() {
   if (!state.jobId) return;
   try {
@@ -370,6 +396,8 @@ function renderRun(run) {
   $("exports").hidden = false;
   $("export-md").href = `/api/runs/${encodeURIComponent(run.id)}/export.md`;
   $("export-json").href = `/api/runs/${encodeURIComponent(run.id)}/export.json`;
+  $("export-docx").href = `/api/runs/${encodeURIComponent(run.id)}/export.docx`;
+  $("export-pdf").href = `/api/runs/${encodeURIComponent(run.id)}/export.pdf`;
 
   const summary = $("result-summary");
   summary.innerHTML = "";
@@ -458,6 +486,8 @@ function renderSources(run) {
       `<strong>${escapeHtml(source.title || source.url)}</strong>` +
       `<small>${escapeHtml(source.domain || "")} · ${escapeHtml(
         source.provider || "unknown",
+      )} · ${escapeHtml(source.source_type || "web")} · ${escapeHtml(
+        source.confidence || "low",
       )}${count ? ` · ${count} citations` : ""}</small>`;
     button.addEventListener("click", () => selectSource(index));
     container.append(button);
@@ -483,7 +513,9 @@ function selectSource(index) {
     `<h4>${escapeHtml(source.title || source.url)}</h4>` +
     `<p>${escapeHtml(source.domain || "")} · ${escapeHtml(
       source.provider || "unknown",
-    )} · ${escapeHtml(source.source_type || "web")}</p>` +
+    )} · ${escapeHtml(source.source_type || "web")} · ${escapeHtml(
+      source.confidence || "low",
+    )} confidence</p>` +
     `<p><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">Open source</a></p>` +
     (source.sub_question
       ? `<p><strong>Sub-question:</strong> ${escapeHtml(source.sub_question)}</p>`
@@ -515,17 +547,19 @@ function renderCitations(run) {
     .map(
       (citation) =>
         `<tr><td>${escapeHtml(citation.id)}</td>` +
-        `<td>${escapeHtml(citation.quote)}</td>` +
         `<td><a href="${escapeHtml(citation.source_url)}" target="_blank" rel="noreferrer">${escapeHtml(
           citation.title || citation.source_url,
         )}</a></td>` +
+        `<td>${escapeHtml(citation.source_type || "web")}</td>` +
+        `<td>${escapeHtml(citation.confidence || "low")}</td>` +
+        `<td>${escapeHtml(citation.quote)}</td>` +
         `<td>${escapeHtml(citation.locator || "")}</td>` +
         `<td>${escapeHtml(citation.sub_question || "")}</td></tr>`,
     )
     .join("");
   container.innerHTML =
     '<div class="table-wrap"><table><thead><tr>' +
-    "<th>ID</th><th>Quote</th><th>Source</th><th>Locator</th><th>Sub-question</th>" +
+    "<th>ID</th><th>Source</th><th>Type</th><th>Confidence</th><th>Quote</th><th>Locator</th><th>Sub-question</th>" +
     `</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 

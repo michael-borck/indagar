@@ -86,6 +86,26 @@ def test_empty_results_are_not_cached():
     assert len(provider.calls) == 2
 
 
+def test_classifies_source_type_and_confidence():
+    provider = FakeProvider(
+        "p",
+        results=[
+            Source("Paper", "https://www.nature.com/articles/example"),
+            Source("Report", "https://www.cdc.gov/report"),
+            Source("Video", "https://www.youtube.com/watch?v=1"),
+        ],
+    )
+    chain = SearchChain([provider])
+
+    outcome = run(chain.search("query", 5))
+
+    assert [(source.source_type, source.confidence) for source in outcome.sources] == [
+        ("academic", "high"),
+        ("institution", "high"),
+        ("media", "low"),
+    ]
+
+
 def test_normalize_url_strips_tracking_and_www():
     assert (
         normalize_url("https://www.Example.com/a/?utm_source=x&b=2") == "https://example.com/a?b=2"

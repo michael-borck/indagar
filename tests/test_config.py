@@ -32,6 +32,12 @@ def test_llm_provider_normalization(monkeypatch):
     assert Settings.from_env().llm_provider == "openai-compatible"
 
 
+def test_concurrency_setting(monkeypatch):
+    monkeypatch.setenv("INDAGAR_CONCURRENCY", "4")
+
+    assert Settings.from_env().concurrency == 4
+
+
 def test_retry_and_cost_settings(monkeypatch):
     monkeypatch.setenv("INDAGAR_LLM_MAX_RETRIES", "4")
     monkeypatch.setenv("INDAGAR_RETRY_BASE_SECONDS", "1.5")

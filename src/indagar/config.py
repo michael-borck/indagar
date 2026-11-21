@@ -91,6 +91,7 @@ class Settings:
     max_sources: int = 12
     max_seconds: int = 300
     search_limit: int = 8
+    concurrency: int = 2
     max_depth: int = 1
     max_follow_ups: int = 3
     max_content_chars: int = 12000
@@ -145,6 +146,7 @@ class Settings:
             max_sources=_env_int("INDAGAR_MAX_SOURCES", 12),
             max_seconds=_env_int("INDAGAR_MAX_SECONDS", 300),
             search_limit=_env_int("INDAGAR_SEARCH_LIMIT", 8),
+            concurrency=_env_int("INDAGAR_CONCURRENCY", 2, minimum=1),
             max_depth=_env_int("INDAGAR_MAX_DEPTH", 1, minimum=0),
             max_follow_ups=_env_int("INDAGAR_MAX_FOLLOW_UPS", 3),
             max_content_chars=_env_int("INDAGAR_MAX_CONTENT_CHARS", 12000, minimum=1000),

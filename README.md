@@ -6,10 +6,10 @@ Indagar asks a question, plans sub-questions, searches multiple sources, reads
 what it finds, and produces a cited research report or a source dossier. The name is Spanish for
 *to investigate, inquire, or probe*.
 
-Phase 1 and the Phase 2 local web UI are implemented. `research` is
-retrieval-only by default; adding `--llm` turns on LLM planning, source
-reading, grounded quote extraction, a bounded gap check, and citation-checked
-synthesis. `indagar serve` opens the local web workspace.
+Phase 2 is complete. `research` is retrieval-only by default; adding `--llm`
+turns on LLM planning, source reading, grounded quote extraction, a bounded
+gap check, concurrency, checkpoints, and citation-checked synthesis.
+`indagar serve` opens the local web workspace with resume and DOCX/PDF export.
 
 ## Install
 
@@ -41,16 +41,18 @@ indagar estimate "Does retrieval augmented generation reduce hallucination?" \
   --max-sources 10 --depth 1
 indagar research "Does retrieval augmented generation reduce hallucination?" \
   --llm --dry-run
+indagar research --resume <run-id> --llm
 ```
 
 If the checkout is on an exFAT drive, create the virtual environment on a
 local disk instead: `uv venv ~/.venvs/indagar`.
 
 The `research` command writes a Markdown report and a JSON run record under
-`runs/`. Every source keeps its URL, provider, and sub-question. With `--llm`,
-quotes are checked against the source text, citations are validated before the
-report is accepted, and per-model token usage is recorded. `--depth 0` disables
-follow-up rounds; the default is one.
+`runs/`. Every source keeps its URL, provider, type, confidence, and
+sub-question. With `--llm`, quotes are checked against the source text,
+citations are validated before the report is accepted, and per-model token
+usage is recorded. Reads are concurrent, and checkpoints let an interrupted run
+continue. `--depth 0` disables follow-up rounds; the default is one.
 
 ## LLM smoke test
 
@@ -97,8 +99,9 @@ indagar serve
 ```
 
 The local UI starts Phase 0 or `--llm` runs, streams progress over SSE, shows
-sources and citations, and exports Markdown or JSON. A run can be stopped from
-the page. History and the source inspector are included.
+sources, labels, and citations, and exports Markdown, JSON, DOCX, or PDF. A run
+can be stopped, and interrupted checkpoints can be resumed from history. The
+source inspector is included.
 
 The server binds `127.0.0.1` by default and has no authentication. Use
 `--host`/`--port` to change the bind address; do not expose it to an untrusted
@@ -136,6 +139,7 @@ Copy `.env.example` to `.env` and set the providers you have.
 | `INDAGAR_MAX_SOURCES` | Sources per run. Default `12` |
 | `INDAGAR_MAX_SECONDS` | Wall-clock budget. Default `300` |
 | `INDAGAR_SEARCH_LIMIT` | Results requested per sub-question. Default `8` |
+| `INDAGAR_CONCURRENCY` | Concurrent source reads. Default `2`, max `8` |
 | `INDAGAR_MAX_DEPTH` | Follow-up rounds for `--llm`. Default `1`, max `2` |
 | `INDAGAR_MAX_FOLLOW_UPS` | Follow-up questions per gap check. Default `3` |
 | `INDAGAR_MAX_CONTENT_CHARS` | Source text sent to the reader model. Default `12000` |
@@ -163,14 +167,14 @@ across the planner, reader, and writer roles.
 - [x] Citation ledger with dedupe, source grouping, and Markdown rendering
 - [x] Per-run source-read and model-usage tables
 - [x] Pre-run token/cost estimate, LLM retry/backoff, and request spacing
-- [x] Local FastAPI service, job history, live SSE progress, and stop
-- [x] Web report, source inspector, citations, usage, and Markdown/JSON export
-- [ ] Resume, DOCX/PDF, source confidence labels, and concurrency
-- [ ] Desktop shell
+- [x] Local FastAPI service, job history, live SSE progress, stop, and resume
+- [x] Web report, source inspector, citations, usage, and Markdown/JSON/DOCX/PDF export
+- [x] Source type and confidence labels; bounded concurrent reading
+- [ ] Desktop shell, academic APIs, podcasts/videos
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.3.0`, which includes the Phase 2 local web UI. Resume, DOCX/PDF
-export, source confidence labels, and the desktop shell are next.
+PyPI has `0.3.0`; the completed Phase 2 work is version `0.4.0` on `main` and
+is next to publish.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
