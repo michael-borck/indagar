@@ -6,9 +6,10 @@ Indagar asks a question, plans sub-questions, searches multiple sources, reads
 what it finds, and produces a cited research report or a source dossier. The name is Spanish for
 *to investigate, inquire, or probe*.
 
-Phase 1 core loop is implemented. `research` is retrieval-only by default;
-adding `--llm` turns on LLM planning, source reading, grounded quote
-extraction, a bounded gap check, and citation-checked synthesis.
+Phase 1 and the Phase 2 local web UI are implemented. `research` is
+retrieval-only by default; adding `--llm` turns on LLM planning, source
+reading, grounded quote extraction, a bounded gap check, and citation-checked
+synthesis. `indagar serve` opens the local web workspace.
 
 ## Install
 
@@ -168,8 +169,8 @@ across the planner, reader, and writer roles.
 - [ ] Desktop shell
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.2.1`; the Phase 2 web UI is version `0.3.0` on `main` and is next
-to publish.
+PyPI has `0.3.0`, which includes the Phase 2 local web UI. Resume, DOCX/PDF
+export, source confidence labels, and the desktop shell are next.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
