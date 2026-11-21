@@ -236,8 +236,8 @@ across the planner, reader, and writer roles.
 - [ ] Bundled/signed desktop installers
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.5.0`; Phase 3 completion is version `0.6.0` on `main` and is next
-to publish.
+PyPI has `0.6.1`, which completes Phase 3. Bundled/signed desktop installers
+remain future work.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
