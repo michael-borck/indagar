@@ -32,6 +32,17 @@ def test_llm_provider_normalization(monkeypatch):
     assert Settings.from_env().llm_provider == "openai-compatible"
 
 
+def test_media_settings(monkeypatch):
+    monkeypatch.setenv("INDAGAR_MEDIA", "true")
+    monkeypatch.setenv("INDAGAR_MEDIA_ORDER", "podcast")
+
+    settings = Settings.from_env()
+
+    assert settings.media_enabled is True
+    assert settings.media_order == ("podcast",)
+    assert settings.configured_media_providers() == ("podcast",)
+
+
 def test_concurrency_setting(monkeypatch):
     monkeypatch.setenv("INDAGAR_CONCURRENCY", "4")
 

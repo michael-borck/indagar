@@ -3,6 +3,12 @@
 All notable changes to Indagar are documented here. The format follows Keep a
 Changelog, and the project uses semantic versioning.
 
+## [0.6.1] - 2026-11-21
+
+### Fixed
+
+- Load `INDAGAR_MEDIA` and `INDAGAR_MEDIA_ORDER` from the environment.
+
 ## [0.6.0] - 2026-11-21
 
 ### Added

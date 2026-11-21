@@ -149,6 +149,8 @@ class Settings:
             academic_order=_academic_order(),
             openalex_mailto=os.getenv("OPENALEX_MAILTO", "").strip() or None,
             semantic_scholar_api_key=(os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip() or None),
+            media_enabled=_env_bool("INDAGAR_MEDIA", False),
+            media_order=_media_order(),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip() or None,
             anthropic_base_url=(
                 os.getenv("ANTHROPIC_BASE_URL", "").strip() or DEFAULT_ANTHROPIC_BASE_URL
