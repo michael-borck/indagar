@@ -38,7 +38,7 @@ def download(url: str, destination: Path) -> None:
 def extract(archive: Path, destination: Path) -> None:
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as bundle:
-            bundle.extractall(destination, filter="data")
+            bundle.extractall(destination)
     else:
         with tarfile.open(archive) as bundle:
             bundle.extractall(destination, filter="data")
