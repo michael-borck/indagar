@@ -173,8 +173,8 @@ across the planner, reader, and writer roles.
 - [ ] Desktop shell, academic APIs, podcasts/videos
 - [ ] Academic, podcast, and video sources
 
-PyPI has `0.3.0`; the completed Phase 2 work is version `0.4.0` on `main` and
-is next to publish.
+PyPI has `0.4.0`, which completes Phase 2. Phase 3 is next: the desktop shell,
+academic APIs, and podcast/video sources.
 
 See [SPEC.md](SPEC.md) for the design and roadmap.
 
